@@ -1,16 +1,16 @@
 use crate::*;
 
-fn _builtin_mul(e: Expression, env: Environment) -> Result<Expression, ErrReport> {
+fn _builtin_mul(e: &Expression, env: Environment) -> Result<Expression, ErrReport> {
     trace!("Mul on {}", e);
     let mut ans = 1.;
-    let mut e = eval_list(&e, env)?;
+    let mut e = Rc::new(eval_list(&e, env)?);
     trace!("Parameter for mul evaluated to {}", e);
     loop {
-        match e {
-            Expression::Cons(a, b) => match *a {
+        match e.as_ref() {
+            Expression::Cons(a, b) => match a.as_ref() {
                 Expression::Number(a) => {
                     ans *= a;
-                    e = *b;
+                    e = b.clone();
                 }
                 _ => panic!("Cannot mul non numeric types"),
             },
@@ -23,17 +23,17 @@ fn _builtin_mul(e: Expression, env: Environment) -> Result<Expression, ErrReport
     Ok(Expression::Number(ans))
 }
 
-fn _builtin_add(e: Expression, env: Environment) -> Result<Expression, ErrReport> {
+fn _builtin_add(e: &Expression, env: Environment) -> Result<Expression, ErrReport> {
     trace!("Add on {}", e);
     let mut ans = 0.;
-    let mut e = eval_list(&e, env)?;
+    let mut e = Rc::new(eval_list(&e, env)?);
     trace!("Parameter for add evaluated to {}", e);
     loop {
-        match e {
-            Expression::Cons(a, b) => match *a {
+        match e.as_ref() {
+            Expression::Cons(a, b) => match a.as_ref() {
                 Expression::Number(a) => {
                     ans += a;
-                    e = *b;
+                    e = b.clone();
                 }
                 _ => panic!("Cannot mul non numeric types"),
             },
@@ -46,15 +46,15 @@ fn _builtin_add(e: Expression, env: Environment) -> Result<Expression, ErrReport
     Ok(Expression::Number(ans))
 }
 
-fn _builtin_lambda(e: Expression, env: Environment) -> Result<Expression, ErrReport> {
+fn _builtin_lambda(e: &Expression, env: Environment) -> Result<Expression, ErrReport> {
     trace!("Lambda on {}", e);
     match e {
-        Expression::Cons(parameters, body) => Ok(Expression::Closure(parameters, body, env)),
+        Expression::Cons(parameters, body) => Ok(Expression::Closure(parameters.clone(), body.clone(), env)),
         _ => panic!("Lambda not acting on array"),
     }
 }
 
-fn _builtin_neg(e: Expression, env: Environment) -> Result<Expression, ErrReport> {
+fn _builtin_neg(e: &Expression, env: Environment) -> Result<Expression, ErrReport> {
     trace!("Neg on {}", e);
     let e = eval(&e, env)?;
     trace!("Parameter for neg evaluated to {}", e);
@@ -65,7 +65,7 @@ fn _builtin_neg(e: Expression, env: Environment) -> Result<Expression, ErrReport
     }
 }
 
-fn _builtin_inv(e: Expression, env: Environment) -> Result<Expression, ErrReport> {
+fn _builtin_inv(e: &Expression, env: Environment) -> Result<Expression, ErrReport> {
     trace!("Inv on {}", e);
     let e = eval(&e, env)?;
     trace!("Parameter for inv evaluated to {}", e);
@@ -79,7 +79,7 @@ fn _builtin_inv(e: Expression, env: Environment) -> Result<Expression, ErrReport
     }
 }
 
-fn _builtin_lt(e: Expression, env: Environment) -> Result<Expression, ErrReport> {
+fn _builtin_lt(e: &Expression, env: Environment) -> Result<Expression, ErrReport> {
     trace!("lt on {}", e);
     let e = eval_list(&e, env)?;
     trace!("Parameter for lt evaluated to {}", e);
@@ -100,7 +100,7 @@ fn _builtin_lt(e: Expression, env: Environment) -> Result<Expression, ErrReport>
     }
 }
 
-fn _builtin_not(e: Expression, env: Environment) -> Result<Expression, ErrReport> {
+fn _builtin_not(e: &Expression, env: Environment) -> Result<Expression, ErrReport> {
     trace!("not on {}", e);
     let e = eval_list(&e, env)?;
     trace!("Parameter for not evaluated to {}", e);
@@ -110,12 +110,12 @@ fn _builtin_not(e: Expression, env: Environment) -> Result<Expression, ErrReport
     }
 }
 
-fn _builtin_if(e: Expression, env: Environment) -> Result<Expression, ErrReport> {
+fn _builtin_if(e: &Expression, env: Environment) -> Result<Expression, ErrReport> {
     trace!("If on {}", e);
     match e {
-        Expression::Cons(pred, options) => match *options {
+        Expression::Cons(pred, options) => match options.as_ref() {
             Expression::Cons(true_option, false_option) => {
-                if matches!(*pred, Expression::Nil) {
+                if matches!(pred.as_ref(), Expression::Nil) {
                     eval(true_option.as_ref(), env)
                 } else {
                     eval(false_option.as_ref(), env)
@@ -129,21 +129,21 @@ fn _builtin_if(e: Expression, env: Environment) -> Result<Expression, ErrReport>
     }
 }
 
-fn _builtin_quote(e: Expression, env: Environment) -> Result<Expression, ErrReport> {
+fn _builtin_quote(e: &Expression, _env: Environment) -> Result<Expression, ErrReport> {
     trace!("Quote on {}", e);
-    Ok(e)
+    Ok(e.clone())
 }
 
-fn _builtin_eval(e: Expression, env: Environment) -> Result<Expression, ErrReport> {
+fn _builtin_eval(e: &Expression, env: Environment) -> Result<Expression, ErrReport> {
     eval(&e, env)
 }
 
-fn _builtin_define(e: Expression, env: Environment) -> Result<Expression, ErrReport> {
+fn _builtin_define(e: &Expression, env: Environment) -> Result<Expression, ErrReport> {
     match e {
-        Expression::Cons(name, val) => match *name {
+        Expression::Cons(name, val) => match name.as_ref() {
             Expression::Symbol(token) => Ok(Expression::Define(
-                token,
-                Box::new(eval(val.as_ref(), env)?),
+                *token,
+                Rc::new(eval(val.as_ref(), env)?),
             )),
             _ => Err(Report::build(ReportKind::Error, (), 0)
                 .with_message("Definition requires a token as name")),

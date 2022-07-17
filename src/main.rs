@@ -3,6 +3,7 @@ use ariadne::{Color, Label, Report, ReportBuilder, ReportKind, Source};
 #[macro_use]
 extern crate log;
 extern crate pretty_env_logger;
+use std::rc::Rc;
 
 type ErrReport = ReportBuilder<std::ops::Range<usize>>;
 
@@ -11,22 +12,23 @@ use token::{tokenise, Token};
 mod builtins;
 use builtins::*;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub enum Expression {
+    /// All numbers are (for now) floats.
     Number(f32),
     Symbol(Token),
     Builtin(
         &'static str,
-        fn(Expression, Environment) -> Result<Expression, ErrReport>,
+        fn(&Expression, Environment) -> Result<Expression, ErrReport>,
     ),
     /// The empty list
     Nil,
     /// The successor list
-    Cons(Box<Expression>, Box<Expression>),
+    Cons(Rc<Expression>, Rc<Expression>),
     /// A closure contains a (cons) list of parameter names, an expression to evaluate and the
     /// environment in which to do it.
-    Closure(Box<Expression>, Box<Expression>, Environment),
-    Define(Token, Box<Expression>),
+    Closure(Rc<Expression>, Rc<Expression>, Environment),
+    Define(Token, Rc<Expression>),
 }
 
 impl Expression {
@@ -44,7 +46,7 @@ impl Expression {
 //                "\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {} \x1B[1;33mwith\x1B[0m {}",
 //                a, v, e
 //            ),
-            Expression::Closure(a, v, e) => format!(
+            Expression::Closure(a, v, _) => format!(
                 "\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {}",
                 a, v
             ),
@@ -99,14 +101,14 @@ fn make_list_expression(
                     if token.chars().next() == Some('.') {
                         let (tail, tail_len) = make_expression(&tokens[1..])?;
                         Ok((
-                            Expression::Cons(Box::new(head), Box::new(tail)),
+                            Expression::Cons(Rc::new(head), Rc::new(tail)),
                             //TODO(robert) ensure there is a close brace here
                             head_len + tail_len + 2,
                         ))
                     } else {
                         let (tail, tail_len) = make_list_expression(tokens, first_token)?;
                         Ok((
-                            Expression::Cons(Box::new(head), Box::new(tail)),
+                            Expression::Cons(Rc::new(head), Rc::new(tail)),
                             head_len + tail_len,
                         ))
                     }
@@ -182,28 +184,28 @@ fn make_root_expression(tokens: &[Token]) -> Result<Expression, ErrReport> {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(Clone)]
 pub struct Environment {
-    variables: Vec<(String, Expression)>,
+    variables: Vec<(String, Rc<Expression>)>,
 }
 
 impl Environment {
     fn new() -> Self {
         Environment {
             variables: vec![
-                ("ZERO".to_string(), Expression::Number(0.)),
-                ("#t".to_string(), BUILTIN_TRUE),
-                ("λ".to_string(), BUILTIN_LAMBDA),
-                ("+".to_string(), BUILTIN_ADD),
-                ("*".to_string(), BUILTIN_MUL),
-                ("neg".to_string(), BUILTIN_NEG),
-                ("inv".to_string(), BUILTIN_INV),
-                ("<".to_string(), BUILTIN_LT),
-                ("not".to_string(), BUILTIN_NOT),
-                ("if".to_string(), BUILTIN_IF),
-                ("'".to_string(), BUILTIN_QUOTE),
-                ("eval".to_string(), BUILTIN_EVAL),
-                ("define".to_string(), BUILTIN_DEFINE),
+                ("ZERO".to_string(), Rc::new(Expression::Number(0.))),
+                ("#t".to_string(), Rc::new(BUILTIN_TRUE)),
+                ("λ".to_string(), Rc::new(BUILTIN_LAMBDA)),
+                ("+".to_string(), Rc::new(BUILTIN_ADD)),
+                ("*".to_string(), Rc::new(BUILTIN_MUL)),
+                ("neg".to_string(), Rc::new(BUILTIN_NEG)),
+                ("inv".to_string(), Rc::new(BUILTIN_INV)),
+                ("<".to_string(), Rc::new(BUILTIN_LT)),
+                ("not".to_string(), Rc::new(BUILTIN_NOT)),
+                ("if".to_string(), Rc::new(BUILTIN_IF)),
+                ("'".to_string(), Rc::new(BUILTIN_QUOTE)),
+                ("eval".to_string(), Rc::new(BUILTIN_EVAL)),
+                ("define".to_string(), Rc::new(BUILTIN_DEFINE)),
             ],
         }
     }
@@ -216,7 +218,7 @@ impl Environment {
         }
         None
     }
-    fn bind(&mut self, symbol: Token, value: Expression) {
+    fn bind(&mut self, symbol: Token, value: Rc<Expression>) {
         let symbol_name: String = symbol.chars().collect();
         self.variables.push((symbol_name, value));
     }
@@ -240,7 +242,7 @@ fn eval(expression: &Expression, environment: Environment) -> Result<Expression,
             None => Err(Report::build(ReportKind::Error, (), 0)
                 .with_message("Symbol not found in environment")),
         },
-        Expression::Cons(f, v) => apply(eval(f, environment.clone())?, *v.clone(), environment),
+        Expression::Cons(f, v) => apply(eval(f, environment.clone())?, v.as_ref(), environment),
         expression => Ok(expression.clone()),
     }
 }
@@ -249,8 +251,8 @@ fn eval_list(expression: &Expression, environment: Environment) -> Result<Expres
     trace!("Eval list {}", expression);
     match expression {
         Expression::Cons(h, t) => Ok(Expression::Cons(
-            Box::new(eval(h, environment.clone())?),
-            Box::new(eval_list(t, environment)?),
+            Rc::new(eval(h, environment.clone())?),
+            Rc::new(eval_list(t, environment)?),
         )),
         e => eval(e, environment),
     }
@@ -258,15 +260,15 @@ fn eval_list(expression: &Expression, environment: Environment) -> Result<Expres
 
 fn apply(
     function: Expression,
-    arguments: Expression,
+    arguments: &Expression,
     environment: Environment,
 ) -> Result<Expression, ErrReport> {
     trace!("Apply {} to {}", function, arguments);
     match function {
         Expression::Builtin(_, function) => function(arguments, environment),
         Expression::Closure(parameters, body, closure_environment) => reduce(
-            (*parameters, *body, closure_environment),
-            arguments,
+            (parameters.as_ref(), body.as_ref(), closure_environment),
+            &arguments,
             environment,
         ),
         _ => Err(
@@ -279,30 +281,30 @@ fn apply(
 }
 
 fn reduce(
-    (mut closure_params, closure_body, closure_env): (Expression, Expression, Environment),
-    arguments: Expression,
+    (mut closure_params, closure_body, closure_env): (&Expression, &Expression, Environment),
+    arguments: &Expression,
     environment: Environment,
 ) -> Result<Expression, ErrReport> {
-    let mut arguments = eval_list(&arguments, environment)?;
+    let mut arguments = Rc::new(eval_list(arguments, environment)?);
     let mut new_env = closure_env;
     let mut arg_count = 0;
     loop {
-        match (closure_params, arguments) {
+        match (closure_params, arguments.as_ref()) {
             (Expression::Nil, _) => break,
             (Expression::Symbol(symbol), value) => {
-                new_env.bind(symbol, value);
+                new_env.bind(*symbol, Rc::new(value.clone()));
                 break;
             }
             (Expression::Cons(a, b), Expression::Cons(value, d)) => {
-                match *a {
+                match **a {
                     Expression::Symbol(symbol) => {
-                        new_env.bind(symbol, *value);
+                        new_env.bind(symbol, value.clone());
                     }
                     _ => panic!("Bindings must be symbols"),
                 }
                 arg_count += 1;
-                closure_params = *b;
-                arguments = *d;
+                closure_params = b.as_ref();
+                arguments = d.clone();
             }
             (Expression::Cons(_, _), _) => {
                 return Err(Report::build(ReportKind::Error, (), 0)
@@ -354,7 +356,7 @@ fn execute(source: &'static str, environment: &mut Environment) -> Result<(), Er
         match ans {
             Expression::Define(token, value) => {
                 println!("Bound {} as {}", token, value);
-                environment.bind(token, *value);
+                environment.bind(token, value);
             }
             x => println!("{}", x),
         }
@@ -390,12 +392,15 @@ fn main() -> Result<(), std::io::Error> {
 mod test {
     use super::*;
 
-    fn expr_test(source: &'static str, expression: Expression) {
+    fn expr_test_num(source: &'static str, val: f32) {
         let environment = Environment::new();
         match make_expression(&tokenise(source)) {
             Ok((expr, _)) => {
                 let ans = eval(&expr, environment).ok().unwrap();
-                assert!(ans == expression, "{} != {}", ans, expression);
+                match ans {
+                    Expression::Number(v) if v == val => {}
+                    _ => panic!()
+                }
             }
             Err(_) => {
                 panic!("Could not make expression");
@@ -405,40 +410,40 @@ mod test {
 
     #[test]
     fn add() {
-        expr_test("(+ 1 2)", Expression::Number(3.));
-        expr_test("( + 1)", Expression::Number(1.));
-        expr_test("( + 1 2 3 )", Expression::Number(6.));
+        expr_test_num("(+ 1 2)", 3.);
+        expr_test_num("( + 1)", 1.);
+        expr_test_num("( + 1 2 3 )", 6.);
 
-        expr_test("( + (+ 1 2) 4 )", Expression::Number(7.));
-        expr_test("( + 1 (+ 2 5) )", Expression::Number(8.));
+        expr_test_num("( + (+ 1 2) 4 )", 7.);
+        expr_test_num("( + 1 (+ 2 5) )", 8.);
         println!("foo");
-        expr_test("( + 1 (+ 2 5) (+ 3 4) )", Expression::Number(15.));
+        expr_test_num("( + 1 (+ 2 5) (+ 3 4) )", 15.);
     }
 
     #[test]
     fn mul() {
-        expr_test(
+        expr_test_num(
             "(* (* 3.1415 4) ( * 10 (* 10 10)))",
-            Expression::Number(12566.),
+            12566.,
         );
     }
 
     #[test]
     fn lambdas() {
-        expr_test("((λ (x y) . (+ x y)) 3 9)", Expression::Number(12.));
+        expr_test_num("((λ (x y) . (+ x y)) 3 9)", 12.);
     }
 
     #[test]
     fn scopes() {
-        expr_test(
+        expr_test_num(
             "(((λ (x) . (λ (y) . (+ x y))) 3) 4)",
-            Expression::Number(7.),
+            7.,
         );
-        expr_test(
+        expr_test_num(
             "((λ (f v) . (f (f v))) (λ (x). (* x x) ) 3)",
-            Expression::Number(81.),
+            81.,
         );
-        expr_test(
+        expr_test_num(
             "(
                 (λ (sub div x y) . (div (sub y x) x))
                     (λ (x y) . (+ x (neg . y)))
@@ -446,7 +451,7 @@ mod test {
                     32
                     42
                 )",
-            Expression::Number(0.3125),
+            0.3125,
         );
     }
 }
