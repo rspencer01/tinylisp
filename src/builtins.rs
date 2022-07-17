@@ -138,6 +138,22 @@ fn _builtin_eval(e: Expression, env: Environment) -> Result<Expression, ErrRepor
     eval(&e, env)
 }
 
+fn _builtin_define(e: Expression, env: Environment) -> Result<Expression, ErrReport> {
+    match e {
+        Expression::Cons(name, val) => match *name {
+            Expression::Symbol(token) => Ok(Expression::Define(
+                token,
+                Box::new(eval(val.as_ref(), env)?),
+            )),
+            _ => Err(Report::build(ReportKind::Error, (), 0)
+                .with_message("Definition requires a token as name")),
+        },
+        _ => {
+            Err(Report::build(ReportKind::Error, (), 0).with_message("Definition requires a list"))
+        }
+    }
+}
+
 pub const BUILTIN_MUL: Expression = Expression::Builtin("×", _builtin_mul);
 pub const BUILTIN_ADD: Expression = Expression::Builtin("+", _builtin_add);
 pub const BUILTIN_NEG: Expression = Expression::Builtin("neg", _builtin_neg);
@@ -149,3 +165,4 @@ pub const BUILTIN_NOT: Expression = Expression::Builtin("not", _builtin_not);
 pub const BUILTIN_IF: Expression = Expression::Builtin("if", _builtin_if);
 pub const BUILTIN_QUOTE: Expression = Expression::Builtin("'", _builtin_quote);
 pub const BUILTIN_EVAL: Expression = Expression::Builtin("eval", _builtin_eval);
+pub const BUILTIN_DEFINE: Expression = Expression::Builtin("define", _builtin_define);

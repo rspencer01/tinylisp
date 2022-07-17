@@ -26,6 +26,7 @@ pub enum Expression {
     /// A closure contains a (cons) list of parameter names, an expression to evaluate and the
     /// environment in which to do it.
     Closure(Box<Expression>, Box<Expression>, Environment),
+    Define(Token, Box<Expression>),
 }
 
 impl Expression {
@@ -38,10 +39,18 @@ impl Expression {
                 format!("( {} )", Expression::cons_print(car, cdr))
             }
             Expression::Nil => "\x1B[1;90m⊥\x1B[0m".to_string(),
+//NOTE(robert) This is very cool but gets out of hand easily
+//            Expression::Closure(a, v, e) => format!(
+//                "\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {} \x1B[1;33mwith\x1B[0m {}",
+//                a, v, e
+//            ),
             Expression::Closure(a, v, e) => format!(
-                "\x1B[1;33mλ\x1B[0m {} \x1B[1;33m=>\x1B[0m {} \x1B[1;33mwith\x1B[0m {}",
-                a, v, e
+                "\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {}",
+                a, v
             ),
+            Expression::Define(t, v) => {
+                format!("\x1B[1;34mdef\x1B[0m {} \x1B[1;34mas\x1B[0m {}", t, v)
+            }
         }
     }
 
@@ -61,7 +70,7 @@ impl Expression {
     fn as_number(&self) -> Option<f32> {
         match *self {
             Expression::Number(f) => Some(f),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -194,6 +203,7 @@ impl Environment {
                 ("if".to_string(), BUILTIN_IF),
                 ("'".to_string(), BUILTIN_QUOTE),
                 ("eval".to_string(), BUILTIN_EVAL),
+                ("define".to_string(), BUILTIN_DEFINE),
             ],
         }
     }
@@ -215,7 +225,7 @@ impl Environment {
 impl std::fmt::Display for Environment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{{..")?;
-        for (name, value) in self.variables.iter().skip(12) {
+        for (name, value) in self.variables.iter().skip(13) {
             write!(f, ", {} => {}", name, value)?;
         }
         write!(f, "}}")
@@ -308,37 +318,72 @@ fn reduce(
     eval(&closure_body, new_env)
 }
 
+fn split_into_statements(tokens: &[Token]) -> Vec<&[Token]> {
+    let mut ans = Vec::new();
+    let mut from = 0;
+    let mut brackets = 0;
+    let mut to = 0;
+    for token in tokens {
+        to += 1;
+        if token.chars().collect::<String>() == "(" {
+            brackets += 1;
+        } else if token.chars().collect::<String>() == ")" {
+            brackets -= 1;
+            if brackets == 0 {
+                ans.push(&tokens[from..to]);
+                from = to;
+            }
+        }
+    }
+    if from < tokens.len() {
+        ans.push(&tokens[from..]);
+    }
+    ans
+}
+
+fn execute(source: &'static str, environment: &mut Environment) -> Result<(), ErrReport> {
+    let tokens = tokenise(source);
+    let statement_tokens = split_into_statements(&tokens);
+
+    for tokens in statement_tokens {
+        trace!("Tokens {}", Token::list_to_string(tokens));
+        let statement = make_root_expression(tokens)?;
+        trace!("Statement {}", statement);
+
+        let ans = eval(&statement, environment.clone())?;
+        match ans {
+            Expression::Define(token, value) => {
+                println!("Bound {} as {}", token, value);
+                environment.bind(token, *value);
+            }
+            x => println!("{}", x),
+        }
+    }
+    Ok(())
+}
+
+fn run(source: &'static str) -> Result<(), ErrReport> {
+    let mut environment = Environment::new();
+    let standard_library = include_str!("../standard_library/slib.lisp");
+    execute(standard_library, &mut environment)?;
+    execute(source, &mut environment)
+}
+
 fn main() -> Result<(), std::io::Error> {
     pretty_env_logger::init();
 
     //TODO(robert) this is a good error message to get right
     //                                            v
-    //let _source = "((λ (f v) . (f (f v))) (λ (x y). (* x x) ) 3)";
-    let source = "(
-    'a
-    )";
+    let source = "
+    (head 1 2 3 4)
+    ((λ x . (+ 5 x)) . 1)
+    (apply (λ x . (+ 5 x)) 1 2 3)
+         ";
 
-    let tokens = tokenise(source);
-
-    debug!("Tokens: {}", Token::list_to_string(&tokens));
-
-    let environment = Environment::new();
-
-    match make_root_expression(&tokens) {
-        Ok(exp) => {
-            debug!("Expression: {}", exp);
-            match eval(&exp, environment) {
-                Ok(value) => println!("{}", value),
-                Err(report) => {
-                    report.finish().print(Source::from(source))?;
-                }
-            }
-        }
-        Err(report) => {
-            report.finish().print(Source::from(source))?;
-        }
+    match run(source) {
+        Ok(_) => Ok(()),
+        Err(report) => report.finish().print(Source::from(source)),
     }
-    Ok(())
 }
 
 #[cfg(test)]

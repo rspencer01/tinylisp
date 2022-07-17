@@ -48,6 +48,16 @@ pub fn tokenise(source: &'static str) -> Vec<Token> {
             '(' | ')' | '\'' => {
                 tokens.push(Token::new(source, token_start, 1));
             }
+            ';' => {
+                while chars
+                    .peek()
+                    .map(|x|  *x == '\n')
+                    == Some(false)
+                {
+                    chars.next();
+                    token_start += 1;
+                }
+            }
             _ => {
                 let mut token_len = 0;
                 while chars
