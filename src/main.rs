@@ -2,8 +2,8 @@
 #![warn(clippy::unwrap_used, clippy::panic)]
 use ariadne::{Color, Label, Report, ReportBuilder, ReportKind, Source};
 #[macro_use]
-extern crate log;
-extern crate pretty_env_logger;
+mod logging;
+
 use std::rc::Rc;
 
 type ErrReport = ReportBuilder<std::ops::Range<usize>>;
@@ -409,8 +409,6 @@ fn run(source: &'static str) -> Result<(), ErrReport> {
 }
 
 fn main() -> Result<(), std::io::Error> {
-    pretty_env_logger::init();
-
     //TODO(robert) this is a good error message to get right
     //                                            v
     let source = "
