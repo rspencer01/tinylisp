@@ -22,7 +22,7 @@ pub enum Expression {
     Symbol(Token),
     Builtin(
         &'static str,
-        fn(&Expression, Environment) -> Result<Expression, ErrReport>,
+        fn(&Expression, &Environment) -> Result<Expression, ErrReport>,
     ),
     /// The empty list
     Nil,
@@ -271,7 +271,7 @@ impl std::fmt::Display for Environment {
     }
 }
 
-fn eval(expression: &Expression, environment: Environment) -> Result<Expression, ErrReport> {
+fn eval(expression: &Expression, environment: &Environment) -> Result<Expression, ErrReport> {
     trace!("Eval {} in {}", expression, environment);
     match expression {
         Expression::Symbol(symbol) => match environment.associate(*symbol) {
@@ -279,16 +279,16 @@ fn eval(expression: &Expression, environment: Environment) -> Result<Expression,
             None => Err(Report::build(ReportKind::Error, (), 0)
                 .with_message("Symbol not found in environment")),
         },
-        Expression::Cons(f, v) => apply(eval(f, environment.clone())?, v.as_ref(), environment),
+        Expression::Cons(f, v) => apply(eval(f, environment)?, v.as_ref(), environment),
         expression => Ok(expression.clone()),
     }
 }
 
-fn eval_list(expression: &Expression, environment: Environment) -> Result<Expression, ErrReport> {
+fn eval_list(expression: &Expression, environment: &Environment) -> Result<Expression, ErrReport> {
     trace!("Eval list {}", expression);
     match expression {
         Expression::Cons(h, t) => Ok(Expression::Cons(
-            Rc::new(eval(h, environment.clone())?),
+            Rc::new(eval(h, environment)?),
             Rc::new(eval_list(t, environment)?),
         )),
         e => eval(e, environment),
@@ -298,7 +298,7 @@ fn eval_list(expression: &Expression, environment: Environment) -> Result<Expres
 fn apply(
     function: Expression,
     arguments: &Expression,
-    environment: Environment,
+    environment: &Environment,
 ) -> Result<Expression, ErrReport> {
     trace!("Apply {} to {}", function, arguments);
     match function {
@@ -320,7 +320,7 @@ fn apply(
 fn reduce(
     (mut closure_params, closure_body, closure_env): (&Expression, &Expression, Environment),
     arguments: &Expression,
-    environment: Environment,
+    environment: &Environment,
 ) -> Result<Expression, ErrReport> {
     let mut arguments = Rc::new(eval_list(arguments, environment)?);
     let mut new_env = closure_env;
@@ -354,7 +354,7 @@ fn reduce(
             }
         }
     }
-    eval(&closure_body, new_env)
+    eval(&closure_body, &new_env)
 }
 
 fn split_into_statements(tokens: &[Token]) -> Vec<&[Token]> {
@@ -389,7 +389,7 @@ fn execute(source: &'static str, environment: &mut Environment) -> Result<(), Er
         let statement = make_root_expression(tokens)?;
         trace!("Statement {}", statement);
 
-        let ans = eval(&statement, environment.clone())?;
+        let ans = eval(&statement, environment)?;
         match ans {
             Expression::Define(token, value) => {
                 println!("Bound {} as {}", token, value);
@@ -431,7 +431,7 @@ mod test {
         let environment = Environment::new();
         match make_expression(&tokenise(source)) {
             Ok((expr, _)) => {
-                let ans = eval(&expr, environment).ok().unwrap();
+                let ans = eval(&expr, &environment).ok().unwrap();
                 match ans {
                     Expression::Number(v) if v == val => {}
                     _ => panic!()
