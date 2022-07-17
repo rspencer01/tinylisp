@@ -2,54 +2,40 @@ use crate::*;
 
 fn _builtin_mul(e: &Expression, env: Environment) -> Result<Expression, ErrReport> {
     trace!("Mul on {}", e);
-    let mut ans = 1.;
-    let mut e = Rc::new(eval_list(&e, env)?);
+    let e = Rc::new(eval_list(&e, env)?);
     trace!("Parameter for mul evaluated to {}", e);
-    loop {
-        match e.as_ref() {
-            Expression::Cons(a, b) => match a.as_ref() {
-                Expression::Number(a) => {
-                    ans *= a;
-                    e = b.clone();
-                }
-                _ => panic!("Cannot mul non numeric types"),
-            },
-            Expression::Nil => {
-                break;
-            }
-            _ => panic!("Cannot mul not list"),
-        }
-    }
-    Ok(Expression::Number(ans))
+    expression_iter(e)
+        .map(|exp| {
+            exp.as_number().ok_or(
+                Report::build(ReportKind::Error, (), 0)
+                    .with_message("Cannot multiply non numeric types"),
+            )
+        })
+        .try_fold(1, |accum, x| x.map(|y| accum * y))
+        .map(|v| Expression::Number(v))
 }
 
 fn _builtin_add(e: &Expression, env: Environment) -> Result<Expression, ErrReport> {
     trace!("Add on {}", e);
-    let mut ans = 0.;
-    let mut e = Rc::new(eval_list(&e, env)?);
+    let e = Rc::new(eval_list(&e, env)?);
     trace!("Parameter for add evaluated to {}", e);
-    loop {
-        match e.as_ref() {
-            Expression::Cons(a, b) => match a.as_ref() {
-                Expression::Number(a) => {
-                    ans += a;
-                    e = b.clone();
-                }
-                _ => panic!("Cannot mul non numeric types"),
-            },
-            Expression::Nil => {
-                break;
-            }
-            _ => panic!("Cannot mul not list"),
-        }
-    }
-    Ok(Expression::Number(ans))
+    expression_iter(e)
+        .map(|exp| {
+            exp.as_number().ok_or(
+                Report::build(ReportKind::Error, (), 0)
+                    .with_message("Cannot multiply non numeric types"),
+            )
+        })
+        .try_fold(0, |accum, x| x.map(|y| accum + y))
+        .map(|v| Expression::Number(v))
 }
 
 fn _builtin_lambda(e: &Expression, env: Environment) -> Result<Expression, ErrReport> {
     trace!("Lambda on {}", e);
     match e {
-        Expression::Cons(parameters, body) => Ok(Expression::Closure(parameters.clone(), body.clone(), env)),
+        Expression::Cons(parameters, body) => {
+            Ok(Expression::Closure(parameters.clone(), body.clone(), env))
+        }
         _ => panic!("Lambda not acting on array"),
     }
 }
@@ -58,25 +44,31 @@ fn _builtin_neg(e: &Expression, env: Environment) -> Result<Expression, ErrRepor
     trace!("Neg on {}", e);
     let e = eval(&e, env)?;
     trace!("Parameter for neg evaluated to {}", e);
-    match e {
-        Expression::Number(x) => Ok(Expression::Number(-x)),
-        _ => Err(Report::build(ReportKind::Error, (), 0)
-            .with_message("Neg cannot act on anything but a number")),
-    }
+    e.as_number()
+        .ok_or_else(|| {
+            Report::build(ReportKind::Error, (), 0)
+                .with_message(format!("Cannot take neg of non-numeric type {}", e))
+        })
+        .map(|x| Expression::Number(-x))
 }
 
 fn _builtin_inv(e: &Expression, env: Environment) -> Result<Expression, ErrReport> {
     trace!("Inv on {}", e);
     let e = eval(&e, env)?;
     trace!("Parameter for inv evaluated to {}", e);
-    match e {
-        Expression::Number(0.) => {
-            Err(Report::build(ReportKind::Error, (), 0).with_message("Inv cannot be applied to 0"))
-        }
-        Expression::Number(x) => Ok(Expression::Number(1. / x)),
-        _ => Err(Report::build(ReportKind::Error, (), 0)
-            .with_message("Neg cannot act on anything but a number")),
-    }
+    e.as_number()
+        .ok_or_else(|| {
+            Report::build(ReportKind::Error, (), 0)
+                .with_message(format!("Cannot take inverse of non-numeric type {}", e))
+        })
+        .map(|x| {
+            if x == 0 {
+                Err(Report::build(ReportKind::Error, (), 0)
+                    .with_message(format!("Cannot take inverse of 0")))
+            } else {
+                Ok(Expression::Number(1 / x))
+            }
+        }).flatten()
 }
 
 fn _builtin_lt(e: &Expression, env: Environment) -> Result<Expression, ErrReport> {
@@ -85,7 +77,7 @@ fn _builtin_lt(e: &Expression, env: Environment) -> Result<Expression, ErrReport
     trace!("Parameter for lt evaluated to {}", e);
     match e {
         Expression::Cons(a, b)
-            if matches!(*a, Expression::Number(_)) && matches!(*b, Expression::Number(_)) =>
+            if a.as_number().is_some() && b.as_number().is_some() =>
         {
             let a = a.as_number().unwrap();
             let b = b.as_number().unwrap();

@@ -1,3 +1,4 @@
+#![feature(result_flattening)]
 #![warn(clippy::unwrap_used, clippy::panic)]
 use ariadne::{Color, Label, Report, ReportBuilder, ReportKind, Source};
 #[macro_use]
@@ -14,8 +15,10 @@ use builtins::*;
 
 #[derive(Clone)]
 pub enum Expression {
-    /// All numbers are (for now) floats.
-    Number(f32),
+    /// All numbers are integers
+    Number(i32),
+    // The below are the necessary "meta-types" to have a lisp
+    /// Also called "atoms"
     Symbol(Token),
     Builtin(
         &'static str,
@@ -41,11 +44,11 @@ impl Expression {
                 format!("( {} )", Expression::cons_print(car, cdr))
             }
             Expression::Nil => "\x1B[1;90m⊥\x1B[0m".to_string(),
-//NOTE(robert) This is very cool but gets out of hand easily
-//            Expression::Closure(a, v, e) => format!(
-//                "\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {} \x1B[1;33mwith\x1B[0m {}",
-//                a, v, e
-//            ),
+            //NOTE(robert) This is very cool but gets out of hand easily
+            //Expression::Closure(a, v, e) => format!(
+            //    "\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {} \x1B[1;33mwith\x1B[0m {}",
+            //    a, v, e
+            //),
             Expression::Closure(a, v, _) => format!(
                 "\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {}",
                 a, v
@@ -69,7 +72,7 @@ impl Expression {
         }
     }
 
-    fn as_number(&self) -> Option<f32> {
+    fn as_number(&self) -> Option<i32> {
         match *self {
             Expression::Number(f) => Some(f),
             _ => None,
@@ -77,9 +80,43 @@ impl Expression {
     }
 }
 
+fn expression_iter(expr : Rc<Expression>) -> ExpressionConsIterator {
+    ExpressionConsIterator {
+        source: Some(expr)
+    }
+}
+
 impl std::fmt::Display for Expression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.pretty_print())
+    }
+}
+
+pub struct ExpressionConsIterator {
+    source : Option<Rc<Expression>>
+}
+
+impl Iterator for ExpressionConsIterator {
+    type Item = Rc<Expression>;
+    fn next(&mut self) -> Option<Self::Item> {
+        match &self.source.clone() {
+            Some(expr) => {
+                match expr.as_ref() {
+                    Expression::Cons(head, tail) => {
+                        self.source = Some(tail.clone());
+                        Some(head.clone())
+                    }
+                    Expression::Nil => {
+                        self.source = None;
+                        None
+                    }
+                    _ => {
+                        self.source.take()
+                    }
+                }
+            }
+            None => None,
+        }
     }
 }
 
@@ -193,7 +230,7 @@ impl Environment {
     fn new() -> Self {
         Environment {
             variables: vec![
-                ("ZERO".to_string(), Rc::new(Expression::Number(0.))),
+                ("ZERO".to_string(), Rc::new(Expression::Number(0))),
                 ("#t".to_string(), Rc::new(BUILTIN_TRUE)),
                 ("λ".to_string(), Rc::new(BUILTIN_LAMBDA)),
                 ("+".to_string(), Rc::new(BUILTIN_ADD)),
@@ -377,9 +414,7 @@ fn main() -> Result<(), std::io::Error> {
     //TODO(robert) this is a good error message to get right
     //                                            v
     let source = "
-    (head 1 2 3 4)
-    ((λ x . (+ 5 x)) . 1)
-    (apply (λ x . (+ 5 x)) 1 2 3)
+         (* 3 5)
          ";
 
     match run(source) {
@@ -392,7 +427,7 @@ fn main() -> Result<(), std::io::Error> {
 mod test {
     use super::*;
 
-    fn expr_test_num(source: &'static str, val: f32) {
+    fn expr_test_num(source: &'static str, val:i32 ) {
         let environment = Environment::new();
         match make_expression(&tokenise(source)) {
             Ok((expr, _)) => {
@@ -410,48 +445,48 @@ mod test {
 
     #[test]
     fn add() {
-        expr_test_num("(+ 1 2)", 3.);
-        expr_test_num("( + 1)", 1.);
-        expr_test_num("( + 1 2 3 )", 6.);
+        expr_test_num("(+ 1 2)", 3);
+        expr_test_num("( + 1)", 1);
+        expr_test_num("( + 1 2 3 )", 6);
 
-        expr_test_num("( + (+ 1 2) 4 )", 7.);
-        expr_test_num("( + 1 (+ 2 5) )", 8.);
+        expr_test_num("( + (+ 1 2) 4 )", 7);
+        expr_test_num("( + 1 (+ 2 5) )", 8);
         println!("foo");
-        expr_test_num("( + 1 (+ 2 5) (+ 3 4) )", 15.);
+        expr_test_num("( + 1 (+ 2 5) (+ 3 4) )", 15);
     }
 
     #[test]
     fn mul() {
         expr_test_num(
             "(* (* 3.1415 4) ( * 10 (* 10 10)))",
-            12566.,
+            12566,
         );
     }
 
     #[test]
     fn lambdas() {
-        expr_test_num("((λ (x y) . (+ x y)) 3 9)", 12.);
+        expr_test_num("((λ (x y) . (+ x y)) 3 9)", 12);
     }
 
     #[test]
     fn scopes() {
         expr_test_num(
             "(((λ (x) . (λ (y) . (+ x y))) 3) 4)",
-            7.,
+            7,
         );
         expr_test_num(
             "((λ (f v) . (f (f v))) (λ (x). (* x x) ) 3)",
-            81.,
+            81,
         );
         expr_test_num(
-            "(
+            "( * 10000
                 (λ (sub div x y) . (div (sub y x) x))
                     (λ (x y) . (+ x (neg . y)))
                     (λ (x y) . (* x (inv . y)))
                     32
                     42
                 )",
-            0.3125,
+            3125,
         );
     }
 }
