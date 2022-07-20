@@ -1,22 +1,30 @@
 #![feature(result_flattening)]
 #![warn(clippy::unwrap_used, clippy::panic)]
-use ariadne::{Color, Label, Report, ReportBuilder, ReportKind, Source};
+use ariadne::{sources, Color, Label, Report, ReportBuilder, ReportKind};
 #[macro_use]
 mod logging;
 
 use std::rc::Rc;
 
-type ErrReport = ReportBuilder<std::ops::Range<usize>>;
+type ErrReport = ReportBuilder<(&'static str, std::ops::Range<usize>)>;
 
 mod token;
 use token::{tokenise, Token};
 mod builtins;
 use builtins::*;
+mod ratio;
+use ratio::{Ratio, ONE, ZERO};
+
+const SOURCES: [(&str, &str); 3] = [
+    ("stdlib", include_str!("../standard_library/slib.tinylisp")),
+    ("input", include_str!("../input.tinylisp")),
+    ("evaluation", ""),
+];
 
 #[derive(Clone)]
 pub enum Expression {
-    /// All numbers are integers
-    Number(i32),
+    /// All numbers are fractions
+    Number(Ratio),
     // The below are the necessary "meta-types" to have a lisp
     /// Also called "atoms"
     Symbol(Token),
@@ -49,10 +57,9 @@ impl Expression {
             //    "\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {} \x1B[1;33mwith\x1B[0m {}",
             //    a, v, e
             //),
-            Expression::Closure(a, v, _) => format!(
-                "\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {}",
-                a, v
-            ),
+            Expression::Closure(a, v, _) => {
+                format!("\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {}", a, v)
+            }
             Expression::Define(t, v) => {
                 format!("\x1B[1;34mdef\x1B[0m {} \x1B[1;34mas\x1B[0m {}", t, v)
             }
@@ -72,7 +79,7 @@ impl Expression {
         }
     }
 
-    fn as_number(&self) -> Option<i32> {
+    fn as_number(&self) -> Option<Ratio> {
         match *self {
             Expression::Number(f) => Some(f),
             _ => None,
@@ -80,10 +87,8 @@ impl Expression {
     }
 }
 
-fn expression_iter(expr : Rc<Expression>) -> ExpressionConsIterator {
-    ExpressionConsIterator {
-        source: Some(expr)
-    }
+fn expression_iter(expr: Rc<Expression>) -> ExpressionConsIterator {
+    ExpressionConsIterator { source: Some(expr) }
 }
 
 impl std::fmt::Display for Expression {
@@ -93,28 +98,24 @@ impl std::fmt::Display for Expression {
 }
 
 pub struct ExpressionConsIterator {
-    source : Option<Rc<Expression>>
+    source: Option<Rc<Expression>>,
 }
 
 impl Iterator for ExpressionConsIterator {
     type Item = Rc<Expression>;
     fn next(&mut self) -> Option<Self::Item> {
         match &self.source.clone() {
-            Some(expr) => {
-                match expr.as_ref() {
-                    Expression::Cons(head, tail) => {
-                        self.source = Some(tail.clone());
-                        Some(head.clone())
-                    }
-                    Expression::Nil => {
-                        self.source = None;
-                        None
-                    }
-                    _ => {
-                        self.source.take()
-                    }
+            Some(expr) => match expr.as_ref() {
+                Expression::Cons(head, tail) => {
+                    self.source = Some(tail.clone());
+                    Some(head.clone())
                 }
-            }
+                Expression::Nil => {
+                    self.source = None;
+                    None
+                }
+                _ => self.source.take(),
+            },
             None => None,
         }
     }
@@ -150,21 +151,27 @@ fn make_list_expression(
                         ))
                     }
                 }
-                None => Err(Report::build(ReportKind::Error, (), 0)
+                None => Err(Report::build(ReportKind::Error, first_token.source_id(), 0)
                     .with_message("EOF while scanning list")
                     .with_label(
-                        Label::new(first_token.start()..first_token.source().chars().count())
-                            .with_message("This list")
-                            .with_color(Color::Blue),
+                        Label::new((
+                            first_token.source_id(),
+                            first_token.start()..first_token.source().chars().count(),
+                        ))
+                        .with_message("This list")
+                        .with_color(Color::Blue),
                     )),
             }
         }
-        None => Err(Report::build(ReportKind::Error, (), 0)
+        None => Err(Report::build(ReportKind::Error, first_token.source_id(), 0)
             .with_message("EOF while scanning list")
             .with_label(
-                Label::new(first_token.start()..first_token.source().chars().count())
-                    .with_message("This list")
-                    .with_color(Color::Blue),
+                Label::new((
+                    first_token.source_id(),
+                    first_token.start()..first_token.source().chars().count(),
+                ))
+                .with_message("This list")
+                .with_color(Color::Blue),
             )),
     }
 }
@@ -193,30 +200,39 @@ fn make_expression(tokens: &[Token]) -> Result<(Expression, usize), ErrReport> {
                 }
             }
         }
-        None => Err(Report::build(ReportKind::Error, (), 0).with_message("Unexpected EOF")),
+        None => {
+            Err(Report::build(ReportKind::Error, "evaluation", 0).with_message("Unexpected EOF"))
+        }
     }
 }
 
 fn make_root_expression(tokens: &[Token]) -> Result<Expression, ErrReport> {
     let (expression, length) = make_expression(tokens)?;
+    println!("{} {}", expression, length);
     if length == tokens.len() {
         Ok(expression)
     } else {
-        Err(Report::build(ReportKind::Error, (), 0)
+        Err(Report::build(ReportKind::Error, tokens[0].source_id(), 0)
             .with_message("Extra tokens after program")
             .with_help(
                 "The program should consist of a single list to be evaluated. \
                 Remove the extra tokens after this list",
             )
             .with_label(
-                Label::new(tokens[0].start()..tokens[length - 1].end())
-                    .with_message("This is the main program")
-                    .with_color(Color::Green),
+                Label::new((
+                    tokens[0].source_id(),
+                    tokens[0].start()..tokens[length - 1].end(),
+                ))
+                .with_message("This is the main program")
+                .with_color(Color::Green),
             )
             .with_label(
-                Label::new(tokens[length].start()..tokens.last().unwrap().end())
-                    .with_message("This is extra")
-                    .with_color(Color::Yellow),
+                Label::new((
+                    tokens[0].source_id(),
+                    tokens[length].start()..tokens.last().unwrap().end(),
+                ))
+                .with_message("This is extra")
+                .with_color(Color::Yellow),
             ))
     }
 }
@@ -230,7 +246,6 @@ impl Environment {
     fn new() -> Self {
         Environment {
             variables: vec![
-                ("ZERO".to_string(), Rc::new(Expression::Number(0))),
                 ("#t".to_string(), Rc::new(BUILTIN_TRUE)),
                 ("λ".to_string(), Rc::new(BUILTIN_LAMBDA)),
                 ("+".to_string(), Rc::new(BUILTIN_ADD)),
@@ -243,6 +258,8 @@ impl Environment {
                 ("'".to_string(), Rc::new(BUILTIN_QUOTE)),
                 ("eval".to_string(), Rc::new(BUILTIN_EVAL)),
                 ("define".to_string(), Rc::new(BUILTIN_DEFINE)),
+                ("list".to_string(), Rc::new(BUILTIN_LIST)),
+                ("#env".to_string(), Rc::new(BUILTIN_PRINT_ENVIRONEMNT)),
             ],
         }
     }
@@ -264,7 +281,7 @@ impl Environment {
 impl std::fmt::Display for Environment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{{..")?;
-        for (name, value) in self.variables.iter().skip(13) {
+        for (name, value) in self.variables.iter().skip(14) {
             write!(f, ", {} => {}", name, value)?;
         }
         write!(f, "}}")
@@ -272,13 +289,15 @@ impl std::fmt::Display for Environment {
 }
 
 fn eval(expression: &Expression, environment: &Environment) -> Result<Expression, ErrReport> {
-    trace!("Eval {} in {}", expression, environment);
     match expression {
-        Expression::Symbol(symbol) => match environment.associate(*symbol) {
-            Some(value) => Ok(value.clone()),
-            None => Err(Report::build(ReportKind::Error, (), 0)
-                .with_message("Symbol not found in environment")),
-        },
+        Expression::Symbol(symbol) => {
+            trace!("Eval {} in {}", expression, environment);
+            match environment.associate(*symbol) {
+                Some(value) => Ok(value.clone()),
+                None => Err(Report::build(ReportKind::Error, "evaluation", 0)
+                    .with_message("Symbol not found in environment")),
+            }
+        }
         Expression::Cons(f, v) => apply(eval(f, environment)?, v.as_ref(), environment),
         expression => Ok(expression.clone()),
     }
@@ -309,7 +328,7 @@ fn apply(
             environment,
         ),
         _ => Err(
-            Report::build(ReportKind::Error, (), 0).with_message(format!(
+            Report::build(ReportKind::Error, "evaluation", 0).with_message(format!(
                 "Cannot apply {} as a function or closure",
                 function
             )),
@@ -344,12 +363,12 @@ fn reduce(
                 arguments = d.clone();
             }
             (Expression::Cons(_, _), _) => {
-                return Err(Report::build(ReportKind::Error, (), 0)
+                return Err(Report::build(ReportKind::Error, "evalutation", 0)
                     .with_message("Not enough parameters to closure")
                     .with_note(format!("Closure wanted more than {} parameters", arg_count)))
             }
             _ => {
-                return Err(Report::build(ReportKind::Error, (), 0)
+                return Err(Report::build(ReportKind::Error, "evaluation", 0)
                     .with_message("Unknown error in bindings"))
             }
         }
@@ -357,36 +376,28 @@ fn reduce(
     eval(&closure_body, &new_env)
 }
 
-fn split_into_statements(tokens: &[Token]) -> Vec<&[Token]> {
-    let mut ans = Vec::new();
-    let mut from = 0;
-    let mut brackets = 0;
-    let mut to = 0;
-    for token in tokens {
-        to += 1;
-        if token.chars().collect::<String>() == "(" {
-            brackets += 1;
-        } else if token.chars().collect::<String>() == ")" {
-            brackets -= 1;
-            if brackets == 0 {
-                ans.push(&tokens[from..to]);
-                from = to;
-            }
-        }
-    }
-    if from < tokens.len() {
-        ans.push(&tokens[from..]);
-    }
-    ans
-}
+fn execute(
+    source: &'static str,
+    source_id: &'static str,
+    environment: &mut Environment,
+) -> Result<(), ErrReport> {
+    let tokens = tokenise(source, source_id);
 
-fn execute(source: &'static str, environment: &mut Environment) -> Result<(), ErrReport> {
-    let tokens = tokenise(source);
-    let statement_tokens = split_into_statements(&tokens);
+    let expression = make_root_expression(&tokens)?;
 
-    for tokens in statement_tokens {
-        trace!("Tokens {}", Token::list_to_string(tokens));
-        let statement = make_root_expression(tokens)?;
+    if !matches!(expression, Expression::Cons(_, _) | Expression::Nil) {
+        return Err(Report::build(ReportKind::Error, source_id, 0)
+            .with_label(
+                Label::new((source_id, 0..source.chars().count()))
+                    .with_message("This is not a list")
+                    .with_color(Color::Red),
+            )
+            .with_message("Program must be list of statments")
+            .with_help("Ensure that the entire program is one list.")
+            .with_help("If it consists of a single expression, still wrap it in a list."));
+    }
+
+    for statement in expression_iter(Rc::new(expression)) {
         trace!("Statement {}", statement);
 
         let ans = eval(&statement, environment)?;
@@ -401,23 +412,16 @@ fn execute(source: &'static str, environment: &mut Environment) -> Result<(), Er
     Ok(())
 }
 
-fn run(source: &'static str) -> Result<(), ErrReport> {
+fn run() -> Result<(), ErrReport> {
     let mut environment = Environment::new();
-    let standard_library = include_str!("../standard_library/slib.lisp");
-    execute(standard_library, &mut environment)?;
-    execute(source, &mut environment)
+    execute(SOURCES[0].1, SOURCES[0].0, &mut environment)?;
+    execute(SOURCES[1].1, SOURCES[1].0, &mut environment)
 }
 
 fn main() -> Result<(), std::io::Error> {
-    //TODO(robert) this is a good error message to get right
-    //                                            v
-    let source = "
-         (* 3 5)
-         ";
-
-    match run(source) {
+    match run() {
         Ok(_) => Ok(()),
-        Err(report) => report.finish().print(Source::from(source)),
+        Err(report) => report.finish().print(sources(SOURCES)),
     }
 }
 
@@ -425,14 +429,14 @@ fn main() -> Result<(), std::io::Error> {
 mod test {
     use super::*;
 
-    fn expr_test_num(source: &'static str, val:i32 ) {
+    fn expr_test_num<T:Into<Ratio>>(source: &'static str, val: T) {
         let environment = Environment::new();
-        match make_expression(&tokenise(source)) {
+        match make_expression(&tokenise(source, "test")) {
             Ok((expr, _)) => {
                 let ans = eval(&expr, &environment).ok().unwrap();
                 match ans {
-                    Expression::Number(v) if v == val => {}
-                    _ => panic!()
+                    Expression::Number(v) if v == val.into() => {}
+                    _ => panic!(),
                 }
             }
             Err(_) => {
@@ -455,10 +459,7 @@ mod test {
 
     #[test]
     fn mul() {
-        expr_test_num(
-            "(* (* 3.1415 4) ( * 10 (* 10 10)))",
-            12566,
-        );
+        expr_test_num("(* (* 3.1415 4) ( * 10 (* 10 10)))", 12566);
     }
 
     #[test]
@@ -468,14 +469,8 @@ mod test {
 
     #[test]
     fn scopes() {
-        expr_test_num(
-            "(((λ (x) . (λ (y) . (+ x y))) 3) 4)",
-            7,
-        );
-        expr_test_num(
-            "((λ (f v) . (f (f v))) (λ (x). (* x x) ) 3)",
-            81,
-        );
+        expr_test_num("(((λ (x) . (λ (y) . (+ x y))) 3) 4)", 7);
+        expr_test_num("((λ (f v) . (f (f v))) (λ (x). (* x x) ) 3)", 81);
         expr_test_num(
             "( * 10000
                 (λ (sub div x y) . (div (sub y x) x))

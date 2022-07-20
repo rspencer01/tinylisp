@@ -1,7 +1,7 @@
 macro_rules! trace {
     ( $( $x:expr ),* ) => {
         {
-            println!("TRACE {}",
+            println!("\x1B[36mTRACE\x1B[0m {}",
                 format!(
                     $( $x , )*
                 )

@@ -3,15 +3,17 @@ use std::fmt::Write;
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Token {
     source: &'static str,
+    source_id: &'static str,
     // This is in characters from the beginning of the file
     position: usize,
     len: usize,
 }
 
 impl Token {
-    pub const fn new(source: &'static str, position: usize, len: usize) -> Self {
+    pub const fn new(source: &'static str, source_id : &'static str,position: usize, len: usize) -> Self {
         Token {
             source,
+            source_id,
             position,
             len,
         }
@@ -36,9 +38,12 @@ impl Token {
     pub fn source(&self) -> &'static str {
         self.source
     }
+    pub fn source_id(&self) -> &'static str {
+        self.source_id
+    }
 }
 
-pub fn tokenise(source: &'static str) -> Vec<Token> {
+pub fn tokenise(source: &'static str, source_id: &'static str) -> Vec<Token> {
     let mut tokens = Vec::new();
     let mut chars = source.chars().peekable();
     let mut token_start = 0;
@@ -46,7 +51,7 @@ pub fn tokenise(source: &'static str) -> Vec<Token> {
         match curr {
             x if x.is_whitespace() => {}
             '(' | ')' | '\'' => {
-                tokens.push(Token::new(source, token_start, 1));
+                tokens.push(Token::new(source, source_id, token_start, 1));
             }
             ';' => {
                 while chars
@@ -68,7 +73,7 @@ pub fn tokenise(source: &'static str) -> Vec<Token> {
                     chars.next();
                     token_len += 1;
                 }
-                tokens.push(Token::new(source, token_start, token_len + 1));
+                tokens.push(Token::new(source, source_id, token_start, token_len + 1));
                 token_start += token_len;
             }
         }
