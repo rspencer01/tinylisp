@@ -13,7 +13,9 @@ use token::{tokenise, Token};
 mod builtins;
 use builtins::*;
 mod ratio;
-use ratio::{Ratio, ONE, ZERO};
+use ratio::{ONE, ZERO};
+mod expression;
+use expression::{expression_iter, Expression};
 
 const SOURCES: [(&str, &str); 3] = [
     ("stdlib", include_str!("../standard_library/slib.tinylisp")),
@@ -21,103 +23,59 @@ const SOURCES: [(&str, &str); 3] = [
     ("evaluation", ""),
 ];
 
-#[derive(Clone)]
-pub enum Expression {
-    /// All numbers are fractions
-    Number(Ratio),
-    // The below are the necessary "meta-types" to have a lisp
-    /// Also called "atoms"
-    Symbol(Token),
-    Builtin(
-        &'static str,
-        fn(&Expression, &Environment) -> Result<Expression, ErrReport>,
-    ),
-    /// The empty list
-    Nil,
-    /// The successor list
-    Cons(Rc<Expression>, Rc<Expression>),
-    /// A closure contains a (cons) list of parameter names, an expression to evaluate and the
-    /// environment in which to do it.
-    Closure(Rc<Expression>, Rc<Expression>, Environment),
-    Define(Token, Rc<Expression>),
+struct Interpreter {
+    atoms: Vec<String>,
+    global: Environment,
 }
 
-impl Expression {
-    fn pretty_print(&self) -> String {
-        match self {
-            Expression::Number(v) => v.to_string(),
-            Expression::Symbol(t) => t.chars().collect(),
-            Expression::Builtin(name, _) => format!("\x1B[1;32m{}\x1B[0m", name),
-            Expression::Cons(car, cdr) => {
-                format!("( {} )", Expression::cons_print(car, cdr))
-            }
-            Expression::Nil => "\x1B[1;90m⊥\x1B[0m".to_string(),
-            //NOTE(robert) This is very cool but gets out of hand easily
-            //Expression::Closure(a, v, e) => format!(
-            //    "\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {} \x1B[1;33mwith\x1B[0m {}",
-            //    a, v, e
-            //),
-            Expression::Closure(a, v, _) => {
-                format!("\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {}", a, v)
-            }
-            Expression::Define(t, v) => {
-                format!("\x1B[1;34mdef\x1B[0m {} \x1B[1;34mas\x1B[0m {}", t, v)
-            }
+impl Interpreter {
+    fn new() -> Self {
+        Interpreter {
+            atoms: vec!["#t".to_owned()],
+            global: Environment::new(),
         }
     }
+    fn find_atom_by_name(&self, name: &str) -> Option<usize> {
+        self.atoms.iter().position(|x| x == name)
+    }
 
-    fn cons_print(car: &Expression, cdr: &Expression) -> String {
-        let car_str = car.pretty_print();
-        let cdr_str = match cdr {
-            Expression::Cons(a, b) => Expression::cons_print(a, b),
-            e => e.pretty_print(),
-        };
-        if matches!(cdr, Expression::Nil | Expression::Cons(_, _)) {
-            format!("{} {}", car_str, cdr_str)
-        } else {
-            format!("{} \x1B[1;90m·\x1B[0m {}", car_str, cdr_str)
+    fn find_or_insert_atom_by_name(&mut self, name: &str) -> usize {
+        self.find_atom_by_name(name).unwrap_or_else(|| {
+            self.atoms.push(name.to_owned());
+            self.atoms.len() - 1
+        })
+    }
+
+    fn execute(&mut self, source: &'static str, source_id: &'static str) -> Result<(), ErrReport> {
+        let tokens = tokenise(source, source_id);
+
+        let expression = make_root_expression(&tokens)?;
+
+        if !matches!(expression, Expression::Cons(_, _) | Expression::Nil) {
+            return Err(Report::build(ReportKind::Error, source_id, 0)
+                .with_label(
+                    Label::new((source_id, 0..source.chars().count()))
+                        .with_message("This is not a list")
+                        .with_color(Color::Red),
+                )
+                .with_message("Program must be list of statments")
+                .with_help("Ensure that the entire program is one list.")
+                .with_help("If it consists of a single expression, still wrap it in a list."));
         }
-    }
 
-    fn as_number(&self) -> Option<Ratio> {
-        match *self {
-            Expression::Number(f) => Some(f),
-            _ => None,
-        }
-    }
-}
+        for statement in expression_iter(Rc::new(expression)) {
+            trace!("Statement {}", statement);
 
-fn expression_iter(expr: Rc<Expression>) -> ExpressionConsIterator {
-    ExpressionConsIterator { source: Some(expr) }
-}
-
-impl std::fmt::Display for Expression {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.pretty_print())
-    }
-}
-
-pub struct ExpressionConsIterator {
-    source: Option<Rc<Expression>>,
-}
-
-impl Iterator for ExpressionConsIterator {
-    type Item = Rc<Expression>;
-    fn next(&mut self) -> Option<Self::Item> {
-        match &self.source.clone() {
-            Some(expr) => match expr.as_ref() {
-                Expression::Cons(head, tail) => {
-                    self.source = Some(tail.clone());
-                    Some(head.clone())
+            let ans = eval(&statement, &self.global)?;
+            match ans {
+                Expression::Define(token, value) => {
+                    println!("Bound {} as {}", token, value);
+                    self.global.bind(token, value);
                 }
-                Expression::Nil => {
-                    self.source = None;
-                    None
-                }
-                _ => self.source.take(),
-            },
-            None => None,
+                x => println!("{}", x),
+            }
         }
+        Ok(())
     }
 }
 
@@ -376,46 +334,10 @@ fn reduce(
     eval(&closure_body, &new_env)
 }
 
-fn execute(
-    source: &'static str,
-    source_id: &'static str,
-    environment: &mut Environment,
-) -> Result<(), ErrReport> {
-    let tokens = tokenise(source, source_id);
-
-    let expression = make_root_expression(&tokens)?;
-
-    if !matches!(expression, Expression::Cons(_, _) | Expression::Nil) {
-        return Err(Report::build(ReportKind::Error, source_id, 0)
-            .with_label(
-                Label::new((source_id, 0..source.chars().count()))
-                    .with_message("This is not a list")
-                    .with_color(Color::Red),
-            )
-            .with_message("Program must be list of statments")
-            .with_help("Ensure that the entire program is one list.")
-            .with_help("If it consists of a single expression, still wrap it in a list."));
-    }
-
-    for statement in expression_iter(Rc::new(expression)) {
-        trace!("Statement {}", statement);
-
-        let ans = eval(&statement, environment)?;
-        match ans {
-            Expression::Define(token, value) => {
-                println!("Bound {} as {}", token, value);
-                environment.bind(token, value);
-            }
-            x => println!("{}", x),
-        }
-    }
-    Ok(())
-}
-
 fn run() -> Result<(), ErrReport> {
-    let mut environment = Environment::new();
-    execute(SOURCES[0].1, SOURCES[0].0, &mut environment)?;
-    execute(SOURCES[1].1, SOURCES[1].0, &mut environment)
+    let mut interpreter = Interpreter::new();
+    interpreter.execute(SOURCES[0].1, SOURCES[0].0)?;
+    interpreter.execute(SOURCES[1].1, SOURCES[1].0)
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -428,8 +350,9 @@ fn main() -> Result<(), std::io::Error> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::ratio::Ratio;
 
-    fn expr_test_num<T:Into<Ratio>>(source: &'static str, val: T) {
+    fn expr_test_num<T: Into<Ratio>>(source: &'static str, val: T) {
         let environment = Environment::new();
         match make_expression(&tokenise(source, "test")) {
             Ok((expr, _)) => {

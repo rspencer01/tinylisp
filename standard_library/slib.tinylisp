@@ -1,5 +1,5 @@
 (
-  ('Loading standard library)
+  ;('Loading standard library)
 
   (define head λ (a . b) . a)
   (define tail λ (a . b) . b)
@@ -8,6 +8,6 @@
     λ (f . a) (f (head . a) (tail . a) )
   )
 
-  (define - λ (x . y) . (+ x (neg . y)))
-  (define / λ (x . y) . (* x (inv . y)))
+  (define - λ (x . y) (+ x (neg . y)))
+  (define / λ (x . y) (* x (inv . y)))
 )

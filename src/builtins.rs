@@ -32,17 +32,26 @@ fn _builtin_add(e: &Expression, env: &Environment) -> Result<Expression, ErrRepo
 
 fn _builtin_lambda(e: &Expression, env: &Environment) -> Result<Expression, ErrReport> {
     trace!("Lambda on {}", e);
-    match e {
-        Expression::Cons(parameters, body) => Ok(Expression::Closure(
-            parameters.clone(),
-            body.clone(),
-            env.clone(),
-        )),
+    let mut param_body_iter = expression_iter(Rc::new(e.clone()));
+    let param_body = (param_body_iter.next(), param_body_iter.next());
+    match param_body_iter.next() {
+        None => match param_body {
+            (Some(parameters), Some(body)) => Ok(Expression::Closure(
+                parameters.clone(),
+                body.clone(),
+                env.clone(),
+            )),
+            _ => Err(Report::build(ReportKind::Error, "evaluation", 0)
+                .with_message("Lambda must be called on array")
+                .with_help("Constructing a closure must take an array.")
+                .with_help("The first element of the array are the arguments.")
+                .with_help("The remainder of the array is the expression to evaluate")),
+        },
         _ => Err(Report::build(ReportKind::Error, "evaluation", 0)
-            .with_message("Lambda must be called on array")
-            .with_help("Constructing a closure must take an array.")
-            .with_help("The first element of the array are the arguments.")
-            .with_help("The remainder of the array is the expression to evaluate")),
+            .with_message("Lambda must be called on of exactly two elements")
+            .with_help("The first element must be parameters.")
+            .with_help("The second element is the body.")
+            .with_help("This must be a NIL terminated list")),
     }
 }
 
@@ -150,11 +159,11 @@ fn _builtin_define(e: &Expression, env: &Environment) -> Result<Expression, ErrR
     }
 }
 
-fn _builtin_list(e : &Expression, env: &Environment) -> Result<Expression, ErrReport> {
+fn _builtin_list(e: &Expression, env: &Environment) -> Result<Expression, ErrReport> {
     eval_list(e, env)
 }
 
-fn _builtin_print_env(_ : &Expression, env: &Environment) -> Result<Expression, ErrReport> {
+fn _builtin_print_env(_: &Expression, env: &Environment) -> Result<Expression, ErrReport> {
     println!("{}", env);
     Ok(Expression::Nil)
 }
