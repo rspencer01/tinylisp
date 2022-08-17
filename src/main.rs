@@ -24,26 +24,14 @@ const SOURCES: [(&str, &str); 3] = [
 ];
 
 struct Interpreter {
-    atoms: Vec<String>,
     global: Environment,
 }
 
 impl Interpreter {
     fn new() -> Self {
         Interpreter {
-            atoms: vec!["#t".to_owned()],
             global: Environment::new(),
         }
-    }
-    fn find_atom_by_name(&self, name: &str) -> Option<usize> {
-        self.atoms.iter().position(|x| x == name)
-    }
-
-    fn find_or_insert_atom_by_name(&mut self, name: &str) -> usize {
-        self.find_atom_by_name(name).unwrap_or_else(|| {
-            self.atoms.push(name.to_owned());
-            self.atoms.len() - 1
-        })
     }
 
     fn execute(&mut self, source: &'static str, source_id: &'static str) -> Result<(), ErrReport> {
@@ -249,7 +237,6 @@ impl std::fmt::Display for Environment {
 fn eval(expression: &Expression, environment: &Environment) -> Result<Expression, ErrReport> {
     match expression {
         Expression::Symbol(symbol) => {
-            trace!("Eval {} in {}", expression, environment);
             match environment.associate(*symbol) {
                 Some(value) => Ok(value.clone()),
                 None => Err(Report::build(ReportKind::Error, "evaluation", 0)
@@ -262,7 +249,6 @@ fn eval(expression: &Expression, environment: &Environment) -> Result<Expression
 }
 
 fn eval_list(expression: &Expression, environment: &Environment) -> Result<Expression, ErrReport> {
-    trace!("Eval list {}", expression);
     match expression {
         Expression::Cons(h, t) => Ok(Expression::Cons(
             Rc::new(eval(h, environment)?),
@@ -331,13 +317,15 @@ fn reduce(
             }
         }
     }
-    eval(&closure_body, &new_env)
+    eval(closure_body, &new_env)
 }
 
 fn run() -> Result<(), ErrReport> {
     let mut interpreter = Interpreter::new();
-    interpreter.execute(SOURCES[0].1, SOURCES[0].0)?;
-    interpreter.execute(SOURCES[1].1, SOURCES[1].0)
+    for source in SOURCES {
+        interpreter.execute(source.1, source.0)?;
+    }
+    Ok(())
 }
 
 fn main() -> Result<(), std::io::Error> {
