@@ -102,3 +102,17 @@ impl Iterator for ExpressionConsIterator {
 pub fn expression_iter(expr: Rc<Expression>) -> ExpressionConsIterator {
     ExpressionConsIterator { source: Some(expr) }
 }
+
+pub fn cons_from_iter_of_result<T, E>(mut iter: T) -> Result<Expression, E>
+where
+    T: Iterator<Item = Result<Expression, E>>,
+{
+    match iter.next() {
+        None => {
+            Ok(Expression::Nil)
+        },
+        Some(e) => {
+            Ok(Expression::Cons(Rc::new(e?), Rc::new(cons_from_iter_of_result(iter)?)))
+        }
+    }
+}

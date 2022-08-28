@@ -15,6 +15,14 @@ fn _builtin_mul(e: &Expression, env: &Environment) -> Result<Expression, ErrRepo
         .map(|v| Expression::Number(v))
 }
 
+/// Add numeric types together
+///
+/// ```lisp
+///  (+ 1 2 3) => 6
+///  (+ 5) => 5
+///  (+ . (1 2 3)) => 6
+///  (+ . ()) => 0
+/// ```
 fn _builtin_add(e: &Expression, env: &Environment) -> Result<Expression, ErrReport> {
     trace!("Add on {}", e);
     let e = Rc::new(eval_list(&e, env)?);
@@ -48,7 +56,7 @@ fn _builtin_lambda(e: &Expression, env: &Environment) -> Result<Expression, ErrR
                 .with_help("The remainder of the array is the expression to evaluate")),
         },
         _ => Err(Report::build(ReportKind::Error, "evaluation", 0)
-            .with_message("Lambda must be called on of exactly two elements")
+            .with_message("Lambda must be called on an array of exactly two elements")
             .with_help("The first element must be parameters.")
             .with_help("The second element is the body.")
             .with_help("This must be a NIL terminated list")),
@@ -57,14 +65,16 @@ fn _builtin_lambda(e: &Expression, env: &Environment) -> Result<Expression, ErrR
 
 fn _builtin_neg(e: &Expression, env: &Environment) -> Result<Expression, ErrReport> {
     trace!("Neg on {}", e);
-    let e = eval(&e, env)?;
+    let e = eval_list(&e, env)?;
     trace!("Parameter for neg evaluated to {}", e);
-    e.as_number()
-        .ok_or_else(|| {
-            Report::build(ReportKind::Error, "evaluation", 0)
-                .with_message(format!("Cannot take neg of non-numeric type {}", e))
-        })
-        .map(|x| Expression::Number(-x))
+    cons_from_iter_of_result(expression_iter(Rc::new(e)).map(|item| {
+        item.as_number()
+            .ok_or_else(|| {
+                Report::build(ReportKind::Error, "evaluation", 0)
+                    .with_message(format!("Cannot take neg of non-numeric type {}", item))
+            })
+            .map(|x| Expression::Number(-x))
+    }))
 }
 
 fn _builtin_inv(e: &Expression, env: &Environment) -> Result<Expression, ErrReport> {
