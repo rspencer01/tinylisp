@@ -1,7 +1,7 @@
-use std::rc::Rc;
 use crate::ratio::Ratio;
 use crate::token::Token;
 use crate::{Environment, ErrReport};
+use std::rc::Rc;
 
 #[derive(Clone)]
 pub enum Expression {

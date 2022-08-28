@@ -15,7 +15,7 @@ use builtins::*;
 mod ratio;
 use ratio::{ONE, ZERO};
 mod expression;
-use expression::{expression_iter, Expression};
+use expression::{expression_iter, Expression, cons_from_iter_of_result};
 
 const SOURCES: [(&str, &str); 3] = [
     ("stdlib", include_str!("../standard_library/slib.tinylisp")),

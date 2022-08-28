@@ -155,17 +155,31 @@ fn _builtin_eval(e: &Expression, env: &Environment) -> Result<Expression, ErrRep
 }
 
 fn _builtin_define(e: &Expression, env: &Environment) -> Result<Expression, ErrReport> {
-    match e {
-        Expression::Cons(name, val) => match name.as_ref() {
-            Expression::Symbol(token) => Ok(Expression::Define(
-                *token,
-                Rc::new(eval(val.as_ref(), env)?),
-            )),
+    let mut define_body_iter = expression_iter(Rc::new(e.clone()));
+    let define_body = (define_body_iter.next(), define_body_iter.next());
+    match define_body_iter.next() {
+        None => match define_body {
+            (Some(name), Some(value)) => {
+                if let Expression::Symbol(name) = *name {
+                    Ok(Expression::Define(
+                        name,
+                        Rc::new(eval(value.as_ref(), env)?),
+                    ))
+                } else {
+                    Err(Report::build(ReportKind::Error, "evaluation", 0)
+                        .with_message("Define must be given a token as a first argument"))
+                }
+            }
             _ => Err(Report::build(ReportKind::Error, "evaluation", 0)
-                .with_message("Definition requires a token as name")),
+                .with_message("Define must be called on array")
+                .with_help("The first element of the array is the name.")
+                .with_help("The remainder of the array is the expression to evaluate")),
         },
         _ => Err(Report::build(ReportKind::Error, "evaluation", 0)
-            .with_message("Definition requires a list")),
+            .with_message("Define must be called on an array of exactly two elements")
+            .with_help("The first element must be the name.")
+            .with_help("The second element is the value.")
+            .with_help("This must be a NIL terminated list")),
     }
 }
 
@@ -190,5 +204,5 @@ pub const BUILTIN_IF: Expression = Expression::Builtin("if", _builtin_if);
 pub const BUILTIN_QUOTE: Expression = Expression::Builtin("'", _builtin_quote);
 pub const BUILTIN_EVAL: Expression = Expression::Builtin("eval", _builtin_eval);
 pub const BUILTIN_DEFINE: Expression = Expression::Builtin("define", _builtin_define);
-pub const BUILTIN_LIST: Expression = Expression::Builtin("define", _builtin_list);
+pub const BUILTIN_LIST: Expression = Expression::Builtin("list", _builtin_list);
 pub const BUILTIN_PRINT_ENVIRONEMNT: Expression = Expression::Builtin("#env", _builtin_print_env);
