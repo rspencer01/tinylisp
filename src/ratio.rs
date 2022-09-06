@@ -17,6 +17,9 @@ impl Ratio {
     pub fn is_zero(&self) -> bool {
         self.num == 0
     }
+    pub fn approximation(&self) -> f32 {
+        self.num as f32 / self.den as f32
+    }
     pub fn inverse(&self) -> Ratio {
         Ratio {
             num: if self.num < 0 {

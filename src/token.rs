@@ -1,8 +1,8 @@
-use std::fmt::Write;
+use std::{fmt::Write, str::Chars};
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
-    source: &'static str,
+    value: String,
     source_id: &'static str,
     // This is in characters from the beginning of the file
     position: usize,
@@ -10,16 +10,16 @@ pub struct Token {
 }
 
 impl Token {
-    pub const fn new(source: &'static str, source_id : &'static str,position: usize, len: usize) -> Self {
+    pub fn new(source: &str, source_id : &'static str, position: usize, len: usize) -> Self {
         Token {
-            source,
             source_id,
             position,
             len,
+            value: source.chars().skip(position).take(len).collect(),
         }
     }
-    pub fn chars(&self) -> impl Iterator<Item = char> {
-        self.source.chars().skip(self.position).take(self.len)
+    pub fn chars(&self) -> Chars {
+        self.value.chars()
     }
     pub fn list_to_string(tokens: &[Token]) -> String {
         let mut token_str = String::new();
@@ -35,15 +35,12 @@ impl Token {
     pub fn end(&self) -> usize {
         self.position + self.len
     }
-    pub fn source(&self) -> &'static str {
-        self.source
-    }
     pub fn source_id(&self) -> &'static str {
         self.source_id
     }
 }
 
-pub fn tokenise(source: &'static str, source_id: &'static str) -> Vec<Token> {
+pub fn tokenise(source: &str, source_id: &'static str) -> Vec<Token> {
     let mut tokens = Vec::new();
     let mut chars = source.chars().peekable();
     let mut token_start = 0;

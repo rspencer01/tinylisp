@@ -4,6 +4,9 @@ use ariadne::{sources, Color, Label, Report, ReportBuilder, ReportKind};
 #[macro_use]
 mod logging;
 
+use std::env;
+use std::fs::read_to_string;
+use std::path::Path;
 use std::rc::Rc;
 
 type ErrReport = ReportBuilder<(&'static str, std::ops::Range<usize>)>;
@@ -11,17 +14,14 @@ type ErrReport = ReportBuilder<(&'static str, std::ops::Range<usize>)>;
 mod token;
 use token::{tokenise, Token};
 mod builtins;
-use builtins::*;
+mod number;
 mod ratio;
-use ratio::{ONE, ZERO};
+use number::Number;
+use number::{ONE, ZERO};
 mod expression;
-use expression::{expression_iter, Expression, cons_from_iter_of_result};
-
-const SOURCES: [(&str, &str); 3] = [
-    ("stdlib", include_str!("../standard_library/slib.tinylisp")),
-    ("input", include_str!("../input.tinylisp")),
-    ("evaluation", ""),
-];
+use expression::{cons_from_iter_of_result, expression_iter, Expression};
+mod environment;
+use environment::Environment;
 
 struct Interpreter {
     global: Environment,
@@ -30,11 +30,11 @@ struct Interpreter {
 impl Interpreter {
     fn new() -> Self {
         Interpreter {
-            global: Environment::new(),
+            global: Environment::new_base(),
         }
     }
 
-    fn execute(&mut self, source: &'static str, source_id: &'static str) -> Result<(), ErrReport> {
+    fn execute(&mut self, source: &str, source_id: &'static str) -> Result<(), ErrReport> {
         let tokens = tokenise(source, source_id);
 
         let expression = make_root_expression(&tokens)?;
@@ -54,7 +54,7 @@ impl Interpreter {
         for statement in expression_iter(Rc::new(expression)) {
             trace!("Statement {}", statement);
 
-            let ans = eval(&statement, &self.global)?;
+            let ans = eval(&statement, &self.global, &self.global)?;
             match ans {
                 Expression::Define(token, value) => {
                     println!("Bound {} as {}", token, value);
@@ -65,6 +65,113 @@ impl Interpreter {
         }
         Ok(())
     }
+}
+
+fn eval(
+    expression: &Expression,
+    environment: &Environment,
+    global: &Environment,
+) -> Result<Expression, ErrReport> {
+    match expression {
+        Expression::Symbol(symbol) => match environment
+            .associate(symbol.clone())
+            .or_else(|| global.associate(symbol.clone()))
+        {
+            Some(value) => Ok(value.clone()),
+            None => Err(
+                Report::build(ReportKind::Error, "evaluation", 0).with_message(format!(
+                    "Symbol {} not found in environment",
+                    symbol.chars().collect::<String>()
+                )),
+            ),
+        },
+        Expression::Cons(f, v) => apply(
+            eval(f, environment, global)?,
+            v.as_ref(),
+            environment,
+            global,
+        ),
+        expression => Ok(expression.clone()),
+    }
+}
+
+fn eval_list(
+    expression: &Expression,
+    environment: &Environment,
+    global: &Environment,
+) -> Result<Expression, ErrReport> {
+    match expression {
+        Expression::Cons(h, t) => Ok(Expression::Cons(
+            Rc::new(eval(h, environment, global)?),
+            Rc::new(eval_list(t, environment, global)?),
+        )),
+        e => eval(e, environment, global),
+    }
+}
+
+fn apply(
+    function: Expression,
+    arguments: &Expression,
+    environment: &Environment,
+    global: &Environment,
+) -> Result<Expression, ErrReport> {
+    trace!("Apply {} to {}", function, arguments);
+    match function {
+        Expression::Builtin(_, function) => function(arguments, environment, global),
+        Expression::Closure(parameters, body, closure_environment) => reduce(
+            (parameters.as_ref(), body.as_ref(), closure_environment.as_ref()),
+            &arguments,
+            environment,
+            global,
+        ),
+        _ => Err(
+            Report::build(ReportKind::Error, "evaluation", 0).with_message(format!(
+                "Cannot apply {} as a function or closure",
+                function
+            )),
+        ),
+    }
+}
+
+fn reduce(
+    (mut closure_params, closure_body, closure_env): (&Expression, &Expression, &Environment),
+    arguments: &Expression,
+    environment: &Environment,
+    global: &Environment,
+) -> Result<Expression, ErrReport> {
+    let mut arguments = Rc::new(eval_list(arguments, environment, global)?);
+    let mut new_env = closure_env.clone();
+    let mut arg_count = 0;
+    loop {
+        match (closure_params, arguments.as_ref()) {
+            (Expression::Nil, _) => break,
+            (Expression::Symbol(symbol), value) => {
+                new_env.bind(symbol.clone(), Rc::new(value.clone()));
+                break;
+            }
+            (Expression::Cons(a, b), Expression::Cons(value, d)) => {
+                match a.as_ref().clone() {
+                    Expression::Symbol(symbol) => {
+                        new_env.bind(symbol, value.clone());
+                    }
+                    _ => panic!("Bindings must be symbols"),
+                }
+                arg_count += 1;
+                closure_params = b.as_ref();
+                arguments = d.clone();
+            }
+            (Expression::Cons(_, _), _) => {
+                return Err(Report::build(ReportKind::Error, "evalutation", 0)
+                    .with_message("Not enough parameters to closure")
+                    .with_note(format!("Closure wanted more than {} parameters", arg_count)))
+            }
+            _ => {
+                return Err(Report::build(ReportKind::Error, "evaluation", 0)
+                    .with_message("Unknown error in bindings"))
+            }
+        }
+    }
+    eval(closure_body, &new_env, global)
 }
 
 // TODO(robert) I don't like having split this up - I tried to do an inline loop thing. Give it
@@ -100,24 +207,18 @@ fn make_list_expression(
                 None => Err(Report::build(ReportKind::Error, first_token.source_id(), 0)
                     .with_message("EOF while scanning list")
                     .with_label(
-                        Label::new((
-                            first_token.source_id(),
-                            first_token.start()..first_token.source().chars().count(),
-                        ))
-                        .with_message("This list")
-                        .with_color(Color::Blue),
+                        Label::new((first_token.source_id(), first_token.start()..usize::MAX))
+                            .with_message("This list")
+                            .with_color(Color::Blue),
                     )),
             }
         }
         None => Err(Report::build(ReportKind::Error, first_token.source_id(), 0)
             .with_message("EOF while scanning list")
             .with_label(
-                Label::new((
-                    first_token.source_id(),
-                    first_token.start()..first_token.source().chars().count(),
-                ))
-                .with_message("This list")
-                .with_color(Color::Blue),
+                Label::new((first_token.source_id(), first_token.start()..usize::MAX))
+                    .with_message("This list")
+                    .with_color(Color::Blue),
             )),
     }
 }
@@ -142,7 +243,7 @@ fn make_expression(tokens: &[Token]) -> Result<(Expression, usize), ErrReport> {
                 if let Ok(num) = string_value.parse() {
                     Ok((Expression::Number(num), 1))
                 } else {
-                    Ok((Expression::Symbol(*token), 1))
+                    Ok((Expression::Symbol(token.clone()), 1))
                 }
             }
         }
@@ -154,7 +255,6 @@ fn make_expression(tokens: &[Token]) -> Result<(Expression, usize), ErrReport> {
 
 fn make_root_expression(tokens: &[Token]) -> Result<Expression, ErrReport> {
     let (expression, length) = make_expression(tokens)?;
-    println!("{} {}", expression, length);
     if length == tokens.len() {
         Ok(expression)
     } else {
@@ -183,177 +283,55 @@ fn make_root_expression(tokens: &[Token]) -> Result<Expression, ErrReport> {
     }
 }
 
-#[derive(Clone)]
-pub struct Environment {
-    variables: Vec<(String, Rc<Expression>)>,
-}
-
-impl Environment {
-    fn new() -> Self {
-        Environment {
-            variables: vec![
-                ("#t".to_string(), Rc::new(BUILTIN_TRUE)),
-                ("λ".to_string(), Rc::new(BUILTIN_LAMBDA)),
-                ("+".to_string(), Rc::new(BUILTIN_ADD)),
-                ("*".to_string(), Rc::new(BUILTIN_MUL)),
-                ("neg".to_string(), Rc::new(BUILTIN_NEG)),
-                ("inv".to_string(), Rc::new(BUILTIN_INV)),
-                ("<".to_string(), Rc::new(BUILTIN_LT)),
-                ("not".to_string(), Rc::new(BUILTIN_NOT)),
-                ("if".to_string(), Rc::new(BUILTIN_IF)),
-                ("'".to_string(), Rc::new(BUILTIN_QUOTE)),
-                ("eval".to_string(), Rc::new(BUILTIN_EVAL)),
-                ("define".to_string(), Rc::new(BUILTIN_DEFINE)),
-                ("list".to_string(), Rc::new(BUILTIN_LIST)),
-                ("#env".to_string(), Rc::new(BUILTIN_PRINT_ENVIRONEMNT)),
-            ],
-        }
-    }
-    fn associate(&self, symbol: Token) -> Option<&Expression> {
-        let symbol_name: String = symbol.chars().collect();
-        for (name, value) in self.variables.iter().rev() {
-            if name == &symbol_name {
-                return Some(value);
-            }
-        }
-        None
-    }
-    fn bind(&mut self, symbol: Token, value: Rc<Expression>) {
-        let symbol_name: String = symbol.chars().collect();
-        self.variables.push((symbol_name, value));
-    }
-}
-
-impl std::fmt::Display for Environment {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{{..")?;
-        for (name, value) in self.variables.iter().skip(14) {
-            write!(f, ", {} => {}", name, value)?;
-        }
-        write!(f, "}}")
-    }
-}
-
-fn eval(expression: &Expression, environment: &Environment) -> Result<Expression, ErrReport> {
-    match expression {
-        Expression::Symbol(symbol) => {
-            match environment.associate(*symbol) {
-                Some(value) => Ok(value.clone()),
-                None => Err(Report::build(ReportKind::Error, "evaluation", 0)
-                    .with_message("Symbol not found in environment")),
-            }
-        }
-        Expression::Cons(f, v) => apply(eval(f, environment)?, v.as_ref(), environment),
-        expression => Ok(expression.clone()),
-    }
-}
-
-fn eval_list(expression: &Expression, environment: &Environment) -> Result<Expression, ErrReport> {
-    match expression {
-        Expression::Cons(h, t) => Ok(Expression::Cons(
-            Rc::new(eval(h, environment)?),
-            Rc::new(eval_list(t, environment)?),
-        )),
-        e => eval(e, environment),
-    }
-}
-
-fn apply(
-    function: Expression,
-    arguments: &Expression,
-    environment: &Environment,
-) -> Result<Expression, ErrReport> {
-    trace!("Apply {} to {}", function, arguments);
-    match function {
-        Expression::Builtin(_, function) => function(arguments, environment),
-        Expression::Closure(parameters, body, closure_environment) => reduce(
-            (parameters.as_ref(), body.as_ref(), closure_environment),
-            &arguments,
-            environment,
-        ),
-        _ => Err(
-            Report::build(ReportKind::Error, "evaluation", 0).with_message(format!(
-                "Cannot apply {} as a function or closure",
-                function
-            )),
-        ),
-    }
-}
-
-fn reduce(
-    (mut closure_params, closure_body, closure_env): (&Expression, &Expression, Environment),
-    arguments: &Expression,
-    environment: &Environment,
-) -> Result<Expression, ErrReport> {
-    let mut arguments = Rc::new(eval_list(arguments, environment)?);
-    let mut new_env = closure_env;
-    let mut arg_count = 0;
-    loop {
-        match (closure_params, arguments.as_ref()) {
-            (Expression::Nil, _) => break,
-            (Expression::Symbol(symbol), value) => {
-                new_env.bind(*symbol, Rc::new(value.clone()));
-                break;
-            }
-            (Expression::Cons(a, b), Expression::Cons(value, d)) => {
-                match **a {
-                    Expression::Symbol(symbol) => {
-                        new_env.bind(symbol, value.clone());
-                    }
-                    _ => panic!("Bindings must be symbols"),
-                }
-                arg_count += 1;
-                closure_params = b.as_ref();
-                arguments = d.clone();
-            }
-            (Expression::Cons(_, _), _) => {
-                return Err(Report::build(ReportKind::Error, "evalutation", 0)
-                    .with_message("Not enough parameters to closure")
-                    .with_note(format!("Closure wanted more than {} parameters", arg_count)))
-            }
-            _ => {
-                return Err(Report::build(ReportKind::Error, "evaluation", 0)
-                    .with_message("Unknown error in bindings"))
-            }
-        }
-    }
-    eval(closure_body, &new_env)
-}
-
-fn run() -> Result<(), ErrReport> {
+fn run(sources: &[(&'static str, String)]) -> Result<(), ErrReport> {
     let mut interpreter = Interpreter::new();
-    for source in SOURCES {
-        interpreter.execute(source.1, source.0)?;
+    for source in sources {
+        interpreter.execute(&source.1, source.0)?;
     }
     Ok(())
 }
 
 fn main() -> Result<(), std::io::Error> {
-    match run() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        return Report::<(&str, std::ops::Range<usize>)>::build(ReportKind::Error, "evaluation", 0)
+            .with_message("Call with path to file")
+            .finish()
+            .print(sources([("evaluation", "")]));
+    }
+    let path = Path::new(&args[1]);
+    let our_sources = [
+        (
+            "stdlib",
+            include_str!("../standard_library/slib.tinylisp").to_owned(),
+        ),
+        ("input", read_to_string(path)?),
+        ("evaluation", "()".to_owned()),
+    ];
+    match run(&our_sources) {
         Ok(_) => Ok(()),
-        Err(report) => report.finish().print(sources(SOURCES)),
+        Err(report) => report.finish().print(sources(our_sources)),
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::ratio::Ratio;
 
-    fn expr_test_num<T: Into<Ratio>>(source: &'static str, val: T) {
-        let environment = Environment::new();
-        match make_expression(&tokenise(source, "test")) {
-            Ok((expr, _)) => {
-                let ans = eval(&expr, &environment).ok().unwrap();
-                match ans {
-                    Expression::Number(v) if v == val.into() => {}
-                    _ => panic!(),
-                }
-            }
-            Err(_) => {
-                panic!("Could not make expression");
-            }
-        }
+    fn expr_test_num<T: Into<Number>>(source: &'static str, val: T) {
+        //        let environment = Environment::new();
+        //        match make_expression(&tokenise(source, "test")) {
+        //            Ok((expr, _)) => {
+        //                let ans = eval(&expr, &environment).ok().unwrap();
+        //                match ans {
+        //                    Expression::Number(v) if v == val.into() => {}
+        //                    _ => panic!(),
+        //                }
+        //            }
+        //            Err(_) => {
+        //                panic!("Could not make expression");
+        //            }
+        //        }
     }
 
     #[test]

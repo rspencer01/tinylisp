@@ -1,4 +1,4 @@
-use crate::ratio::Ratio;
+use crate::Number;
 use crate::token::Token;
 use crate::{Environment, ErrReport};
 use std::rc::Rc;
@@ -6,13 +6,13 @@ use std::rc::Rc;
 #[derive(Clone)]
 pub enum Expression {
     /// All numbers are fractions
-    Number(Ratio),
+    Number(Number),
     // The below are the necessary "meta-types" to have a lisp
     /// Also called "atoms"
     Symbol(Token),
     Builtin(
         &'static str,
-        fn(&Expression, &Environment) -> Result<Expression, ErrReport>,
+        fn(&Expression, &Environment, &Environment) -> Result<Expression, ErrReport>,
     ),
     /// The empty list
     Nil,
@@ -20,7 +20,7 @@ pub enum Expression {
     Cons(Rc<Expression>, Rc<Expression>),
     /// A closure contains a (cons) list of parameter names, an expression to evaluate and the
     /// environment in which to do it.
-    Closure(Rc<Expression>, Rc<Expression>, Environment),
+    Closure(Rc<Expression>, Rc<Expression>, Rc<Environment>),
     Define(Token, Rc<Expression>),
 }
 
@@ -61,7 +61,7 @@ impl Expression {
         }
     }
 
-    pub fn as_number(&self) -> Option<Ratio> {
+    pub fn as_number(&self) -> Option<Number> {
         match *self {
             Expression::Number(f) => Some(f),
             _ => None,

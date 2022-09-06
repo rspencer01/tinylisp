@@ -1,13 +1,37 @@
 (
-  ;('Loading standard library)
+  ('Loading standard library)
 
-  (define head λ (a . b) . a)
-  (define tail λ (a . b) . b)
-
-  (define map
-    λ (f . a) (f (head . a) (tail . a) )
-  )
-
-  (define - λ (x . y) (+ x (neg . y)))
-  (define / λ (x . y) (* x (inv . y)))
+  (define head (λ (x . y) . x))
+  (define cons (λ (x y) (x . y)))
+  (define - (λ (x₀ x) (+ x₀ (cons + (neg . x)))))
+  (define / (λ (x₀ x) (* x₀ (cons * (inv . x)))))
+  (define or₂ (λ (x y) 
+    (cond 
+      (x . #t)
+      (y . #t)
+      (#t)
+    )
+  ))
+  (define and₂ (λ (x y) 
+    (cond 
+      (x . (cond 
+           (y . #t)
+           (#t)
+      ))
+      (#t)
+    )
+  ))
+  (define > (λ (x y) (< y x)))
+  (define = (λ (x y) (not (or₂ (< x y) (> x y)))))
+  
+;  (define head λ (a . b) . a)
+;  (define tail λ (a . b) . b)
+;
+;  (define map
+;    λ (f . a) (f (head . a) (tail . a) )
+;  )
+;
+;  (define - λ (x . y) (+ x (neg . y)))
+;  (define / λ (x . y) (* x (inv . y)))
+  ('Loaded standard library)
 )
