@@ -75,6 +75,34 @@ fn _builtin_lambda(
     }
 }
 
+fn _builtin_macro(
+    e: &Expression,
+    _env: &Environment,
+    _global: &Environment,
+) -> Result<Expression, ErrReport> {
+    trace!("Macro on {}", e);
+    let mut param_body_iter = expression_iter(Rc::new(e.clone()));
+    let param_body = (param_body_iter.next(), param_body_iter.next());
+    match param_body_iter.next() {
+        None => match param_body {
+            (Some(parameters), Some(body)) => Ok(Expression::Macro(
+                parameters.clone(),
+                body.clone(),
+            )),
+            _ => Err(Report::build(ReportKind::Error, "evaluation", 0)
+                .with_message("Lambda must be called on array")
+                .with_help("Constructing a closure must take an array.")
+                .with_help("The first element of the array are the arguments.")
+                .with_help("The remainder of the array is the expression to evaluate")),
+        },
+        _ => Err(Report::build(ReportKind::Error, "evaluation", 0)
+            .with_message("Lambda must be called on an array of exactly two elements")
+            .with_help("The first element must be parameters.")
+            .with_help("The second element is the body.")
+            .with_help("This must be a NIL terminated list")),
+    }
+}
+
 fn _builtin_neg(
     e: &Expression,
     env: &Environment,
@@ -270,6 +298,7 @@ pub const BUILTIN_ADD: Expression = Expression::Builtin("+", _builtin_add);
 pub const BUILTIN_NEG: Expression = Expression::Builtin("neg", _builtin_neg);
 pub const BUILTIN_INV: Expression = Expression::Builtin("inv", _builtin_inv);
 pub const BUILTIN_LAMBDA: Expression = Expression::Builtin("λ", _builtin_lambda);
+pub const BUILTIN_MACRO: Expression = Expression::Builtin("macro", _builtin_macro);
 pub const BUILTIN_LT: Expression = Expression::Builtin("<", _builtin_lt);
 pub const BUILTIN_NOT: Expression = Expression::Builtin("not", _builtin_not);
 pub const BUILTIN_COND: Expression = Expression::Builtin("cond", _builtin_cond);

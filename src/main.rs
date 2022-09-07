@@ -119,7 +119,17 @@ fn apply(
     match function {
         Expression::Builtin(_, function) => function(arguments, environment, global),
         Expression::Closure(parameters, body, closure_environment) => reduce(
-            (parameters.as_ref(), body.as_ref(), closure_environment.as_ref()),
+            (
+                parameters.as_ref(),
+                body.as_ref(),
+                closure_environment.as_ref(),
+            ),
+            &arguments,
+            environment,
+            global,
+        ),
+        Expression::Macro(parameters, body) => expand(
+            (parameters.as_ref(), body.as_ref()),
             &arguments,
             environment,
             global,
@@ -172,6 +182,49 @@ fn reduce(
         }
     }
     eval(closure_body, &new_env, global)
+}
+
+fn expand(
+    (mut params, body): (&Expression, &Expression),
+    arguments: &Expression,
+    env: &Environment,
+    global: &Environment,
+) -> Result<Expression, ErrReport> {
+    trace!("Expanding...");
+    let mut arguments = Rc::new(arguments.clone());
+    let mut new_env = Environment::new();
+    let mut arg_count = 0;
+    loop {
+        match (params, arguments.as_ref()) {
+            (Expression::Nil, _) => break,
+            (Expression::Symbol(symbol), value) => {
+                new_env.bind(symbol.clone(), Rc::new(value.clone()));
+                break;
+            }
+            (Expression::Cons(a, b), Expression::Cons(value, d)) => {
+                match a.as_ref().clone() {
+                    Expression::Symbol(symbol) => {
+                        new_env.bind(symbol, value.clone());
+                    }
+                    _ => panic!("Bindings must be symbols"),
+                }
+                arg_count += 1;
+                params = b.as_ref();
+                arguments = d.clone();
+            }
+            (Expression::Cons(_, _), _) => {
+                return Err(Report::build(ReportKind::Error, "evalutation", 0)
+                    .with_message("Not enough parameters to closure")
+                    .with_note(format!("Closure wanted more than {} parameters", arg_count)))
+            }
+            _ => {
+                return Err(Report::build(ReportKind::Error, "evaluation", 0)
+                    .with_message("Unknown error in bindings"))
+            }
+        }
+    }
+    trace!("Evaluating {} in {}", body, new_env);
+    eval(&eval(body, &new_env, global)?, env, global)
 }
 
 // TODO(robert) I don't like having split this up - I tried to do an inline loop thing. Give it

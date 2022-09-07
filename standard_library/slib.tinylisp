@@ -1,7 +1,13 @@
 (
   ('Loading standard library)
 
+  (define list (λ x x))
+  (define defun (macro (f v x) (list define f (list λ v x))))
+
+  (defun not (x) (cond (x) (#t . #t)))
+
   (define head (λ (x . y) . x))
+  (define tail (λ (x . y) y))
   (define cons (λ (x y) (x . y)))
   (define - (λ (x₀ x) (+ x₀ (cons + (neg . x)))))
   (define / (λ (x₀ x) (* x₀ (cons * (inv . x)))))

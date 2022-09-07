@@ -21,6 +21,7 @@ pub enum Expression {
     /// A closure contains a (cons) list of parameter names, an expression to evaluate and the
     /// environment in which to do it.
     Closure(Rc<Expression>, Rc<Expression>, Rc<Environment>),
+    Macro(Rc<Expression>, Rc<Expression>),
     Define(Token, Rc<Expression>),
 }
 
@@ -41,6 +42,9 @@ impl Expression {
             //),
             Expression::Closure(a, v, _) => {
                 format!("\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {}", a, v)
+            }
+            Expression::Macro(a, v) => {
+                format!("\x1B[1;33mmacro\x1B[0m {} \x1B[1;33m→\x1B[0m {}", a, v)
             }
             Expression::Define(t, v) => {
                 format!("\x1B[1;34mdef\x1B[0m {} \x1B[1;34mas\x1B[0m {}", t, v)
