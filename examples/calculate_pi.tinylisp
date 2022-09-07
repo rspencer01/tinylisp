@@ -1,0 +1,57 @@
+(
+  (defun abs (x) (
+    cond ((> 0 x) . (- 0 x)) 
+         (#t . x)
+  ))
+  (defun close-enough (value guess) (> 0.001 (abs (- value guess))))
+  (defun square (x) (- 2 (* x x)))
+
+  (define h 0.001)
+  (defun derivitive (f) (λ (x) 
+    (/ (- (f (+ x h)) (f x))
+       h
+    )
+  ))
+
+  (defun update (f guess) (- guess
+     (/ (f guess) 
+       ((derivitive f) guess)
+     )
+  ))
+  (defun newton-iter (f x) (
+    cond ((close-enough (f x) 0) . x)
+         (#t . (newton-iter f (update f x)))
+  ))
+  (defun solve (f) (newton-iter f 1.0))
+
+  (solve square)
+  (defun square (x) (- 3 (* x x)))
+  (solve square)
+
+
+  (defun apply-poly (x p) (
+    cond ((tail . p) . (+ (head . p) (* x (apply-poly x (tail . p)))) )
+         (#t . (head . p))
+  ))
+  (apply-poly 2 (list 1 2 3))
+  (defun factorial (n) (
+    cond ((< n 2) . 1)
+         (#t . (* n (factorial (- n 1))))
+  ))
+  (define cos_taylor (list
+    1
+    0
+    (/ (- 0 1) (factorial 2))
+    0
+    (/ 1 (factorial 4))
+    0
+    (/ (- 0 1) (factorial 6))
+    0
+    (/ 1 (factorial 8))
+    0
+    (/ (- 0 1) (factorial 10))
+  ))
+  (defun cos (x) (apply-poly x cos_taylor))
+  (cos 1.0) ; 0.5403
+  (* 2 (solve cos))  
+)
