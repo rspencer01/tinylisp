@@ -212,7 +212,7 @@ fn _builtin_cond(
                     continue;
                 },
                 _ => {
-                    trace!("Condition {} evaluated to true", pred);
+                    trace!("Condition {} evaluated to true in {}", pred, env);
                     return eval(value.as_ref(), env, global);
                 }
             },
@@ -275,14 +275,6 @@ fn _builtin_define(
     }
 }
 
-fn _builtin_list(
-    e: &Expression,
-    env: &Environment,
-    global: &Environment,
-) -> Result<Expression, ErrReport> {
-    eval_list(e, env, global)
-}
-
 fn _builtin_print_env(
     _: &Expression,
     env: &Environment,
@@ -300,10 +292,8 @@ pub const BUILTIN_INV: Expression = Expression::Builtin("inv", _builtin_inv);
 pub const BUILTIN_LAMBDA: Expression = Expression::Builtin("λ", _builtin_lambda);
 pub const BUILTIN_MACRO: Expression = Expression::Builtin("macro", _builtin_macro);
 pub const BUILTIN_LT: Expression = Expression::Builtin("<", _builtin_lt);
-pub const BUILTIN_NOT: Expression = Expression::Builtin("not", _builtin_not);
 pub const BUILTIN_COND: Expression = Expression::Builtin("cond", _builtin_cond);
 pub const BUILTIN_QUOTE: Expression = Expression::Builtin("'", _builtin_quote);
 pub const BUILTIN_EVAL: Expression = Expression::Builtin("eval", _builtin_eval);
 pub const BUILTIN_DEFINE: Expression = Expression::Builtin("define", _builtin_define);
-pub const BUILTIN_LIST: Expression = Expression::Builtin("list", _builtin_list);
 pub const BUILTIN_PRINT_ENVIRONEMNT: Expression = Expression::Builtin("#env", _builtin_print_env);
