@@ -1,4 +1,5 @@
 #![feature(result_flattening)]
+#![feature(iter_intersperse)]
 #![warn(clippy::unwrap_used, clippy::panic)]
 use ariadne::{sources, Color, Label, Report, ReportBuilder, ReportKind};
 #[macro_use]
@@ -6,6 +7,7 @@ mod logging;
 
 use std::env;
 use std::fs::read_to_string;
+use std::io::{stdin, Read};
 use std::path::Path;
 use std::rc::Rc;
 
@@ -22,6 +24,8 @@ mod expression;
 use expression::{cons_from_iter_of_result, expression_iter, Expression};
 mod environment;
 use environment::Environment;
+mod format;
+use format::pretty_format;
 
 struct Interpreter {
     global: Environment,
@@ -346,26 +350,51 @@ fn run(sources: &[(&'static str, String)]) -> Result<(), ErrReport> {
 
 fn main() -> Result<(), std::io::Error> {
     let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
+    if args.len() < 2 || args.len() > 3 || (args.len() == 3 && args[1] != "--format") {
         return Report::<(&str, std::ops::Range<usize>)>::build(ReportKind::Error, "evaluation", 0)
-            .with_message("Call with path to file")
+            .with_message(USAGE)
             .finish()
             .print(sources([("evaluation", "")]));
     }
-    let path = Path::new(&args[1]);
-    let our_sources = [
-        (
-            "stdlib",
-            include_str!("../standard_library/slib.tinylisp").to_owned(),
-        ),
-        ("input", read_to_string(path)?),
-        ("evaluation", "()".to_owned()),
-    ];
-    match run(&our_sources) {
-        Ok(_) => Ok(()),
-        Err(report) => report.finish().print(sources(our_sources)),
+    let path = Path::new(&args[args.len() - 1]);
+    let source = if path == Path::new("-") {
+        let mut ans = String::new();
+        stdin().read_to_string(&mut ans)?;
+        ans
+    } else {
+        read_to_string(path)?
+    };
+    if args.len() == 2 {
+        let our_sources = [
+            (
+                "stdlib",
+                include_str!("../standard_library/slib.tinylisp").to_owned(),
+            ),
+            ("input", source),
+            ("evaluation", "()".to_owned()),
+        ];
+        match run(&our_sources) {
+            Ok(_) => Ok(()),
+            Err(report) => report.finish().print(sources(our_sources)),
+        }
+    } else {
+        let tokens = tokenise(&source, "input");
+
+        match make_root_expression(&tokens) {
+            Ok(expression) => {
+                println!("{}", pretty_format(&expression));
+                Ok(())
+            }
+            Err(report) => report.finish().print(sources([("input", source)])),
+        }
     }
 }
+
+const USAGE: &str = "
+USAGE: tinylisp <path-to-input>
+       OR
+       tinylisp --format <path-to-input>
+";
 
 #[cfg(test)]
 mod test {
