@@ -61,7 +61,6 @@ impl Interpreter {
             let ans = eval(&statement, &self.global, &self.global)?;
             match ans {
                 Expression::Define(token, value) => {
-                    println!("Bound {} as {}", token, value);
                     self.global.bind(token, value);
                 }
                 x => println!("{}", x),
@@ -76,6 +75,7 @@ fn eval(
     environment: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
+    trace!("Eval {}", expression);
     match expression {
         Expression::Symbol(symbol) => match environment
             .associate(symbol.clone())
@@ -176,7 +176,7 @@ fn reduce(
             }
             (Expression::Cons(_, _), _) => {
                 return Err(Report::build(ReportKind::Error, "evalutation", 0)
-                    .with_message("Not enough parameters to closure")
+                    .with_message(format!("Not enough parameters to closure {}", closure_body) )
                     .with_note(format!("Closure wanted more than {} parameters", arg_count)))
             }
             _ => {
