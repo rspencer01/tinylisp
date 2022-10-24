@@ -1,5 +1,5 @@
-use crate::Number;
 use crate::token::Token;
+use crate::Number;
 use crate::{Environment, ErrReport};
 use std::rc::Rc;
 
@@ -27,27 +27,51 @@ pub enum Expression {
 
 impl Expression {
     fn pretty_print(&self) -> String {
-        match self {
-            Expression::Number(v) => v.to_string(),
-            Expression::Symbol(t) => t.chars().collect(),
-            Expression::Builtin(name, _) => format!("\x1B[1;32m{}\x1B[0m", name),
-            Expression::Cons(car, cdr) => {
-                format!("( {} )", Expression::cons_print(car, cdr))
+        if std::env::var("TINYLISP_NO_COLOUR")
+            .map(|s| !s.is_empty())
+            .unwrap_or(false)
+        {
+            match self {
+                Expression::Number(v) => v.to_string(),
+                Expression::Symbol(t) => t.chars().collect(),
+                Expression::Builtin(name, _) => name.to_string(),
+                Expression::Cons(car, cdr) => {
+                    format!("( {} )", Expression::cons_print(car, cdr))
+                }
+                Expression::Nil => "⊥".to_string(),
+                Expression::Closure(a, v, _) => {
+                    format!("λ {} → {}", a, v)
+                }
+                Expression::Macro(a, v) => {
+                    format!("macro {} → {}", a, v)
+                }
+                Expression::Define(t, v) => {
+                    format!("def {} as {}", t, v)
+                }
             }
-            Expression::Nil => "\x1B[1;90m⊥\x1B[0m".to_string(),
-            //NOTE(robert) This is very cool but gets out of hand easily
-            //Expression::Closure(a, v, e) => format!(
-            //    "\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {} \x1B[1;33mwith\x1B[0m {}",
-            //    a, v, e
-            //),
-            Expression::Closure(a, v, _) => {
-                format!("\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {}", a, v)
-            }
-            Expression::Macro(a, v) => {
-                format!("\x1B[1;33mmacro\x1B[0m {} \x1B[1;33m→\x1B[0m {}", a, v)
-            }
-            Expression::Define(t, v) => {
-                format!("\x1B[1;34mdef\x1B[0m {} \x1B[1;34mas\x1B[0m {}", t, v)
+        } else {
+            match self {
+                Expression::Number(v) => v.to_string(),
+                Expression::Symbol(t) => t.chars().collect(),
+                Expression::Builtin(name, _) => format!("\x1B[1;32m{}\x1B[0m", name),
+                Expression::Cons(car, cdr) => {
+                    format!("( {} )", Expression::cons_print(car, cdr))
+                }
+                Expression::Nil => "\x1B[1;90m⊥\x1B[0m".to_string(),
+                //NOTE(robert) This is very cool but gets out of hand easily
+                //Expression::Closure(a, v, e) => format!(
+                //    "\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {} \x1B[1;33mwith\x1B[0m {}",
+                //    a, v, e
+                //),
+                Expression::Closure(a, v, _) => {
+                    format!("\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {}", a, v)
+                }
+                Expression::Macro(a, v) => {
+                    format!("\x1B[1;33mmacro\x1B[0m {} \x1B[1;33m→\x1B[0m {}", a, v)
+                }
+                Expression::Define(t, v) => {
+                    format!("\x1B[1;34mdef\x1B[0m {} \x1B[1;34mas\x1B[0m {}", t, v)
+                }
             }
         }
     }
@@ -112,11 +136,10 @@ where
     T: Iterator<Item = Result<Expression, E>>,
 {
     match iter.next() {
-        None => {
-            Ok(Expression::Nil)
-        },
-        Some(e) => {
-            Ok(Expression::Cons(Rc::new(e?), Rc::new(cons_from_iter_of_result(iter)?)))
-        }
+        None => Ok(Expression::Nil),
+        Some(e) => Ok(Expression::Cons(
+            Rc::new(e?),
+            Rc::new(cons_from_iter_of_result(iter)?),
+        )),
     }
 }
