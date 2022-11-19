@@ -1,43 +1,31 @@
 (
   ('Loading standard library)
 
-  (define list (λ x x))
-  (define defun (macro (f v x) (list define f (list λ v x))))
+  (define list (λ x . x))
+  (list 1 2 3)
 
+  (define defun (macro (f v x) (list define f (list λ v x))))
+  
+  (defun cons (x y) (list x . y))
+  (defun apply (f l) (f . l))
   (defun not (x) (cond (x) (#t . #t)))
 
-  (define head (λ (x . y) . x))
-  (define tail (λ (x . y) y))
-  (define cons (λ (x y) (x . y)))
-  (define - (λ (x₀ x) (+ x₀ (cons + (neg . x)))))
-  (define / (λ (x₀ x) (* x₀ (cons * (inv . x)))))
-  (define or₂ (λ (x y) 
+  (defun head (x . y) x)
+  (defun tail (x . y) y)
+  (defun - (x₀ x) (+ x₀ (apply + (apply neg x))))
+  (defun / (x₀ x) (* x₀ (apply * (apply inv x))))
+  (defun or₂ (x y) 
     (cond 
       (x . #t)
       (y . #t)
       (#t)
     )
-  ))
-  (define and₂ (λ (x y) 
-    (cond 
-      (x . (cond 
-           (y . #t)
-           (#t)
-      ))
-      (#t)
-    )
-  ))
-  (define > (λ (x y) (< y x)))
-  (define = (λ (x y) (not (or₂ (< x y) (> x y)))))
+  )
+  (defun and₂ (x y) 
+    (not (or₂ (not x) (not y)))
+  )
+  (defun >(x y) (< y x))
+  (defun = (x y) (not (or₂ (< x y) (> x y))))
   
-;  (define head λ (a . b) . a)
-;  (define tail λ (a . b) . b)
-;
-;  (define map
-;    λ (f . a) (f (head . a) (tail . a) )
-;  )
-;
-;  (define - λ (x . y) (+ x (neg . y)))
-;  (define / λ (x . y) (* x (inv . y)))
   ('Loaded standard library)
 )
