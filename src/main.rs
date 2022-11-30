@@ -155,7 +155,6 @@ fn reduce(
 ) -> Result<Expression, ErrReport> {
     let mut arguments = Rc::new(eval_list(arguments, environment, global)?);
     let mut new_env = closure_env.clone();
-    let mut arg_count = 0;
     loop {
         match (closure_params, arguments.as_ref()) {
             (Expression::Nil, _) => break,
@@ -170,14 +169,15 @@ fn reduce(
                     }
                     _ => panic!("Bindings must be symbols"),
                 }
-                arg_count += 1;
                 closure_params = b.as_ref();
                 arguments = d.clone();
             }
-            (Expression::Cons(_, _), _) => {
-                return Err(Report::build(ReportKind::Error, "evalutation", 0)
-                    .with_message(format!("Not enough parameters to closure {}", closure_body) )
-                    .with_note(format!("Closure wanted more than {} parameters", arg_count)))
+            (Expression::Cons(a, b), _) => {
+                return Ok(Expression::Closure(
+                    Rc::new(Expression::Cons(a.clone(), b.clone())),
+                    Rc::new(closure_body.clone()),
+                    Rc::new(new_env),
+                ));
             }
             _ => {
                 return Err(Report::build(ReportKind::Error, "evaluation", 0)
