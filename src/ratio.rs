@@ -3,29 +3,29 @@ use std::str::FromStr;
 
 #[derive(Copy, Clone, Eq, Debug)]
 pub struct Ratio {
-    num: i32,
-    den: u32,
+    num: i64,
+    den: u64,
 }
 
 impl Ratio {
     fn normalise(&mut self) -> Self {
         let g = gcd(self.den, self.num.unsigned_abs());
-        self.num /= g as i32;
+        self.num /= g as i64;
         self.den /= g;
         *self
     }
     pub fn is_zero(&self) -> bool {
         self.num == 0
     }
-    pub fn approximation(&self) -> f32 {
-        self.num as f32 / self.den as f32
+    pub fn approximation(&self) -> f64 {
+        self.num as f64 / self.den as f64
     }
     pub fn inverse(&self) -> Ratio {
         Ratio {
             num: if self.num < 0 {
-                -(self.den as i32)
+                -(self.den as i64)
             } else {
-                self.den as i32
+                self.den as i64
             },
             den: self.num.unsigned_abs(),
         }
@@ -34,15 +34,15 @@ impl Ratio {
 
 impl PartialEq for Ratio {
     fn eq(&self, other: &Self) -> bool {
-        self.num * (other.den as i32) == other.num * (self.den as i32)
+        self.num * (other.den as i64) == other.num * (self.den as i64)
     }
 }
 
 impl PartialOrd for Ratio {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        i32::partial_cmp(
-            &(self.num * (other.den as i32)),
-            &(other.num * (self.den as i32)),
+        i64::partial_cmp(
+            &(self.num * (other.den as i64)),
+            &(other.num * (self.den as i64)),
         )
     }
 }
@@ -52,7 +52,7 @@ impl Add for Ratio {
 
     fn add(self, rhs: Ratio) -> Ratio {
         Ratio {
-            num: self.num * rhs.den as i32 + rhs.num * self.den as i32,
+            num: self.num * rhs.den as i64 + rhs.num * self.den as i64,
             den: self.den * rhs.den,
         }
         .normalise()
@@ -94,8 +94,8 @@ impl FromStr for Ratio {
     }
 }
 
-impl From<i32> for Ratio {
-    fn from(x: i32) -> Self {
+impl From<i64> for Ratio {
+    fn from(x: i64) -> Self {
         Ratio { num: x, den: 1 }.normalise()
     }
 }
@@ -110,7 +110,7 @@ impl std::fmt::Display for Ratio {
     }
 }
 
-fn gcd(a: u32, b: u32) -> u32 {
+fn gcd(a: u64, b: u64) -> u64 {
     if b == 0 {
         a
     } else {

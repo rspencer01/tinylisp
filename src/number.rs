@@ -5,7 +5,7 @@ use crate::ratio::Ratio;
 #[derive(Copy, Clone)]
 pub enum Number {
     Ratio(Ratio),
-    Approximation(f32),
+    Approximation(f64),
 }
 
 impl Number {
@@ -23,7 +23,7 @@ impl Number {
         }
     }
 
-    fn approximation(&self) -> f32 {
+    fn approximation(&self) -> f64 {
         match self {
             Number::Ratio(r) => r.approximation(),
             Number::Approximation(x) => *x,
@@ -94,20 +94,20 @@ impl FromStr for Number {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Ok(r) = Ratio::from_str(s) {
             Ok(Number::Ratio(r))
-        } else if let Ok(x) = f32::from_str(s) {
+        } else if let Ok(x) = f64::from_str(s) {
             Ok(Number::Approximation(x))
         } else {
             Err(())
         }
     }
 }
-impl From<i32> for Number {
-    fn from(r: i32) -> Self {
+impl From<i64> for Number {
+    fn from(r: i64) -> Self {
         Number::Ratio(r.into())
     }
 }
-impl From<f32> for Number {
-    fn from(x: f32) -> Self {
+impl From<f64> for Number {
+    fn from(x: f64) -> Self {
         Number::Approximation(x)
     }
 }

@@ -188,7 +188,7 @@ mod test {
     #[test]
     fn expression_cons_iter() {
         let n = || Rc::new(Expression::Nil);
-        let num = |i: i32| Rc::new(Expression::Number(Number::from(i)));
+        let num = |i: i64| Rc::new(Expression::Number(Number::from(i)));
         let c = |a, b| Rc::new(Expression::Cons(a, b));
         let iter = expression_iter(c(n(), n()))
             .map(|x| (*x).clone())
