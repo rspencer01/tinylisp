@@ -73,7 +73,7 @@ impl std::fmt::Display for Number {
 impl PartialEq for Number {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Number::Ratio(r1), Number::Ratio(r2)) => r1.eq(&r2),
+            (Number::Ratio(r1), Number::Ratio(r2)) => r1.eq(r2),
             (n1, n2) => n1.approximation().eq(&n2.approximation()),
         }
     }
@@ -82,7 +82,7 @@ impl PartialEq for Number {
 impl PartialOrd for Number {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
-            (Number::Ratio(r1), Number::Ratio(r2)) => r1.partial_cmp(&r2),
+            (Number::Ratio(r1), Number::Ratio(r2)) => r1.partial_cmp(r2),
             (n1, n2) => n1.approximation().partial_cmp(&n2.approximation()),
         }
     }

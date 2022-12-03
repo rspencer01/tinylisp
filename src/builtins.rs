@@ -6,7 +6,7 @@ fn _builtin_mul(
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
     trace!("Mul on {}", e);
-    let e = Rc::new(eval_list(&e, env, global)?);
+    let e = Rc::new(eval_list(e, env, global)?);
     trace!("Parameter for mul evaluated to {}", e);
     expression_iter(e)
         .map(|exp| {
@@ -16,7 +16,7 @@ fn _builtin_mul(
             })
         })
         .try_fold(ONE, |accum, x| x.map(|y| accum * y))
-        .map(|v| Expression::Number(v))
+        .map(Expression::Number)
 }
 
 /// Add numeric types together
@@ -33,7 +33,7 @@ fn _builtin_add(
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
     trace!("Add on {}", e);
-    let e = Rc::new(eval_list(&e, env, global)?);
+    let e = Rc::new(eval_list(e, env, global)?);
     trace!("Parameter for add evaluated to {}", e);
     expression_iter(e)
         .map(|exp| {
@@ -43,7 +43,7 @@ fn _builtin_add(
             })
         })
         .try_fold(ZERO, |accum, x| x.map(|y| accum + y))
-        .map(|v| Expression::Number(v))
+        .map(Expression::Number)
 }
 
 fn _builtin_lambda(
@@ -109,7 +109,7 @@ fn _builtin_neg(
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
     trace!("Neg on {}", e);
-    let e = eval_list(&e, env, global)?;
+    let e = eval_list(e, env, global)?;
     trace!("Parameter for neg evaluated to {}", e);
     cons_from_iter_of_result(expression_iter(Rc::new(e)).map(|item| {
         item.as_number()
@@ -127,7 +127,7 @@ fn _builtin_inv(
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
     trace!("Inv on {}", e);
-    let e = eval(&e, env, global)?;
+    let e = eval(e, env, global)?;
     trace!("Parameter for inv evaluated to {}", e);
     e.as_number()
         .ok_or_else(|| {
@@ -151,9 +151,9 @@ fn _builtin_lt(
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
     trace!("lt on {}", e);
-    let e = eval_list(&e, env, global)?;
+    let e = eval_list(e, env, global)?;
     trace!("Parameter for lt evaluated to {}", e);
-    let mut param_iter = expression_iter(Rc::new(e.clone()));
+    let mut param_iter = expression_iter(Rc::new(e));
     let params = (param_iter.next(), param_iter.next());
     match param_iter.next() {
         None => match params {
@@ -190,10 +190,14 @@ fn _builtin_not(
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
     trace!("not on {}", e);
-    let e = eval_list(&e, env, global)?;
+    let e = eval_list(e, env, global)?;
     trace!("Parameter for not evaluated to {}", e);
     match e {
-        Expression::Nil => eval(&Expression::Symbol(Token::new("#t", "builtin", 0, 2)), env, global),
+        Expression::Nil => eval(
+            &Expression::Symbol(Token::new("#t", "builtin", 0, 2)),
+            env,
+            global,
+        ),
         _ => Ok(Expression::Nil),
     }
 }
@@ -210,7 +214,7 @@ fn _builtin_cond(
                 Expression::Nil => {
                     trace!("Condition {} evaluated to false", pred);
                     continue;
-                },
+                }
                 _ => {
                     trace!("Condition {} evaluated to true in {}", pred, env);
                     return eval(value.as_ref(), env, global);
@@ -239,7 +243,7 @@ fn _builtin_eval(
     env: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    eval(&e, env, global)
+    eval(e, env, global)
 }
 
 fn _builtin_define(

@@ -10,7 +10,7 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(source: &str, source_id : &'static str, position: usize, len: usize) -> Self {
+    pub fn new(source: &str, source_id: &'static str, position: usize, len: usize) -> Self {
         Token {
             source_id,
             position,
@@ -51,11 +51,7 @@ pub fn tokenise(source: &str, source_id: &'static str) -> Vec<Token> {
                 tokens.push(Token::new(source, source_id, token_start, 1));
             }
             ';' => {
-                while chars
-                    .peek()
-                    .map(|x|  *x == '\n')
-                    == Some(false)
-                {
+                while chars.peek().map(|x| *x == '\n') == Some(false) {
                     chars.next();
                     token_start += 1;
                 }
