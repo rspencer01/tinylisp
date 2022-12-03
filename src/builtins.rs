@@ -142,6 +142,21 @@ fn _builtin_inv(
         .flatten()
 }
 
+fn _builtin_floor(
+    e: &Expression,
+    env: &Environment,
+    global: &Environment,
+) -> Result<Expression, ErrReport> {
+    trace!("Floor on {}", e);
+    let e = eval(&e, env, global)?;
+    e.as_number()
+        .ok_or_else(|| {
+            Report::build(ReportKind::Error, "evaluation", 0)
+                .with_message(format!("Cannot take floor of non-numeric type {}", e))
+        })
+        .map(|x| Expression::Number(x.floor()))
+}
+
 fn _builtin_lt(
     e: &Expression,
     env: &Environment,
@@ -298,3 +313,4 @@ pub const BUILTIN_QUOTE: Expression = Expression::Builtin("'", _builtin_quote);
 pub const BUILTIN_EVAL: Expression = Expression::Builtin("eval", _builtin_eval);
 pub const BUILTIN_DEFINE: Expression = Expression::Builtin("define", _builtin_define);
 pub const BUILTIN_PRINT_ENVIRONEMNT: Expression = Expression::Builtin("#env", _builtin_print_env);
+pub const BUILTIN_FLOOR: Expression = Expression::Builtin("floor", _builtin_floor);

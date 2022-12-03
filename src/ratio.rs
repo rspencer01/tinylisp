@@ -30,6 +30,17 @@ impl Ratio {
             den: self.num.unsigned_abs(),
         }
     }
+    pub fn floor(&self) -> Ratio {
+        if self.num >= 0 {
+            Ratio::from(self.num / self.den as i64)
+        } else {
+            if self.num % self.den as i64 == 0 {
+                Ratio::from(self.num / self.den as i64)
+            } else {
+                Ratio::from(self.num / self.den as i64 - 1)
+            }
+        }
+    }
 }
 
 impl PartialEq for Ratio {

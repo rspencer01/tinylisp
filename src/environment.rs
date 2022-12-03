@@ -34,6 +34,7 @@ impl Environment {
                 ("define".to_string(), Rc::new(BUILTIN_DEFINE)),
                 ("macro".to_string(), Rc::new(BUILTIN_MACRO)),
                 ("#env".to_string(), Rc::new(BUILTIN_PRINT_ENVIRONEMNT)),
+                ("floor".to_string(), Rc::new(BUILTIN_FLOOR)),
             ],
         }
     }

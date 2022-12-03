@@ -23,6 +23,13 @@ impl Number {
         }
     }
 
+    pub fn floor(&self) -> Number {
+        match self {
+            Number::Ratio(r) => Number::Ratio(r.floor()),
+            Number::Approximation(x) => Number::Ratio(Ratio::from(x.floor() as i64)),
+        }
+    }
+
     fn approximation(&self) -> f64 {
         match self {
             Number::Ratio(r) => r.approximation(),
