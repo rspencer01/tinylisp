@@ -18,10 +18,6 @@ impl Environment {
     pub fn new_base() -> Self {
         Environment {
             variables: vec![
-                (
-                    "#t".to_string(),
-                    Rc::new(Expression::Symbol(Token::new("#t", "builtin", 0, 2))),
-                ),
                 ("λ".to_string(), Rc::new(BUILTIN_LAMBDA)),
                 ("+".to_string(), Rc::new(BUILTIN_ADD)),
                 ("*".to_string(), Rc::new(BUILTIN_MUL)),

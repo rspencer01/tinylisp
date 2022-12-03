@@ -173,11 +173,7 @@ fn _builtin_lt(
                 let a = a.as_number().unwrap();
                 let b = b.as_number().unwrap();
                 if a < b {
-                    eval(
-                        &Expression::Symbol(Token::new("#t", "builtin", 0, 2)),
-                        env,
-                        global,
-                    )
+                    Ok(Expression::Number(b))
                 } else {
                     Ok(Expression::Nil)
                 }
@@ -194,24 +190,6 @@ fn _builtin_lt(
     //        _ => Err(Report::build(ReportKind::Error, "evaluation", 0)
     //            .with_message("Less than cannot act on anything but a pair of numbers")),
     //    }
-}
-
-fn _builtin_not(
-    e: &Expression,
-    env: &Environment,
-    global: &Environment,
-) -> Result<Expression, ErrReport> {
-    trace!("not on {}", e);
-    let e = eval_list(e, env, global)?;
-    trace!("Parameter for not evaluated to {}", e);
-    match e {
-        Expression::Nil => eval(
-            &Expression::Symbol(Token::new("#t", "builtin", 0, 2)),
-            env,
-            global,
-        ),
-        _ => Ok(Expression::Nil),
-    }
 }
 
 fn _builtin_cond(
