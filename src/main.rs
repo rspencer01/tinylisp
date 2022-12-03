@@ -124,13 +124,13 @@ fn apply(
                 body.as_ref(),
                 closure_environment.as_ref(),
             ),
-            &arguments,
+            arguments,
             environment,
             global,
         ),
         Expression::Macro(parameters, body) => expand(
             (parameters.as_ref(), body.as_ref()),
-            &arguments,
+            arguments,
             environment,
             global,
         ),
@@ -144,44 +144,39 @@ fn apply(
 }
 
 fn reduce(
-    (mut closure_params, closure_body, closure_env): (&Expression, &Expression, &Environment),
+    (closure_params, closure_body, closure_env): (&Expression, &Expression, &Environment),
     arguments: &Expression,
     environment: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    let mut arguments = Rc::new(eval_list(arguments, environment, global)?);
+    let arguments = Rc::new(eval_list(arguments, environment, global)?);
     let mut new_env = closure_env.clone();
-    loop {
-        match (closure_params, arguments.as_ref()) {
-            (Expression::Nil, _) => break,
-            (Expression::Symbol(symbol), value) => {
-                new_env.bind(symbol.clone(), Rc::new(value.clone()));
-                break;
-            }
-            (Expression::Cons(a, b), Expression::Cons(value, d)) => {
-                match a.as_ref().clone() {
-                    Expression::Symbol(symbol) => {
-                        new_env.bind(symbol, value.clone());
-                    }
-                    _ => panic!("Bindings must be symbols"),
-                }
-                closure_params = b.as_ref();
-                arguments = d.clone();
-            }
-            (Expression::Cons(a, b), _) => {
-                return Ok(Expression::Closure(
-                    Rc::new(Expression::Cons(a.clone(), b.clone())),
-                    Rc::new(closure_body.clone()),
-                    Rc::new(new_env),
-                ));
-            }
-            _ => {
-                return Err(Report::build(ReportKind::Error, "evaluation", 0)
-                    .with_message("Unknown error in bindings"))
-            }
-        }
+
+    let (pairings, remaining_parameters) =
+        Expression::mtch(Rc::new(closure_params.clone()), arguments);
+
+    let pairings = pairings
+        .into_iter()
+        .map(|(name, value)| name.as_token().map(|name| (name, value)))
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| {
+            Report::build(ReportKind::Error, "evaluation", 0)
+                .with_message("All bindings must be symbols")
+        })?;
+
+    for (name, value) in pairings {
+        new_env.bind(name, value);
     }
-    eval(closure_body, &new_env, global)
+
+    if let Some(remaining_parameters) = remaining_parameters {
+        Ok(Expression::Closure(
+            remaining_parameters,
+            Rc::new(closure_body.clone()),
+            Rc::new(new_env),
+        ))
+    } else {
+        eval(closure_body, &new_env, global)
+    }
 }
 
 fn expand(

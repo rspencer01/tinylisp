@@ -56,11 +56,9 @@ fn _builtin_lambda(
     let param_body = (param_body_iter.next(), param_body_iter.next());
     match param_body_iter.next() {
         None => match param_body {
-            (Some(parameters), Some(body)) => Ok(Expression::Closure(
-                parameters.clone(),
-                body.clone(),
-                Rc::new(env.clone()),
-            )),
+            (Some(parameters), Some(body)) => {
+                Ok(Expression::Closure(parameters, body, Rc::new(env.clone())))
+            }
             _ => Err(Report::build(ReportKind::Error, "evaluation", 0)
                 .with_message("Lambda must be called on array")
                 .with_help("Constructing a closure must take an array.")
@@ -85,10 +83,9 @@ fn _builtin_macro(
     let param_body = (param_body_iter.next(), param_body_iter.next());
     match param_body_iter.next() {
         None => match param_body {
-            (Some(parameters), Some(body)) => Ok(Expression::Macro(
-                parameters.clone(),
-                body.clone(),
-            )),
+            (Some(parameters), Some(body)) => {
+                Ok(Expression::Macro(parameters, body))
+            }
             _ => Err(Report::build(ReportKind::Error, "evaluation", 0)
                 .with_message("Lambda must be called on array")
                 .with_help("Constructing a closure must take an array.")

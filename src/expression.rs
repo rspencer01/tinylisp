@@ -1,7 +1,6 @@
-use crate::token::Token;
-use crate::Number;
-use crate::{Environment, ErrReport};
 use std::rc::Rc;
+
+use crate::*;
 
 #[derive(Clone)]
 pub enum Expression {
@@ -95,6 +94,44 @@ impl Expression {
             _ => None,
         }
     }
+
+    pub fn as_token(&self) -> Option<Token> {
+        match self {
+            Expression::Symbol(t) => Some(t.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn is_nil(&self) -> bool {
+        matches!(self, Expression::Nil)
+    }
+
+    /// Match two expression lists
+    ///
+    /// Returns the vector of matched elements, and the remainder of a
+    pub fn mtch(
+        a: Rc<Expression>,
+        b: Rc<Expression>,
+    ) -> (
+        Vec<(Rc<Expression>, Rc<Expression>)>,
+        Option<Rc<Expression>>,
+    ) {
+        match (a.as_ref(), b.as_ref()) {
+            (Expression::Nil, _) => (vec![], None),
+            (Expression::Cons(a_head, a_tail), Expression::Cons(b_head, b_tail)) => {
+                let mut ans = Expression::mtch(a_tail.clone(), b_tail.clone());
+                ans.0.push((a_head.clone(), b_head.clone()));
+                ans
+            }
+            (Expression::Cons(_, _), bval) if bval.is_nil() => {
+                (vec![], Some(a))
+            }
+            (Expression::Cons(a_head, a_tail), _) => {
+                (vec![(a_head.clone(), b.clone())], Some(a_tail.clone()))
+            }
+            (_, _) => (vec![(a, b)], None),
+        }
+    }
 }
 
 impl std::fmt::Display for Expression {
@@ -141,5 +178,28 @@ where
             Rc::new(e?),
             Rc::new(cons_from_iter_of_result(iter)?),
         )),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn expression_cons_iter() {
+        let n = || Rc::new(Expression::Nil);
+        let num = |i: i32| Rc::new(Expression::Number(Number::from(i)));
+        let c = |a, b| Rc::new(Expression::Cons(a, b));
+        let iter = expression_iter(c(n(), n()))
+            .map(|x| (*x).clone())
+            .collect::<Vec<_>>();
+        assert_eq!(iter.len(), 1);
+        assert!(matches!(iter[0], Expression::Nil));
+        let iter = expression_iter(c(num(1), c(n(), n())))
+            .map(|x| (*x).clone())
+            .collect::<Vec<_>>();
+        assert_eq!(iter.len(), 2);
+        assert!(matches!(iter[0], Expression::Number(_)));
+        assert!(matches!(iter[1], Expression::Nil));
     }
 }

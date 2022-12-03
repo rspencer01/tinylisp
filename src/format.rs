@@ -25,7 +25,9 @@ fn pretty_print(expression: &Expression, first_line_offset: usize, indent: usize
             let mut list: VecDeque<String> = expression_iter(Rc::new(expression.clone()))
                 .map(|x| pretty_print(x.as_ref(), subindent, subindent))
                 .collect();
-            if !null_terminated(expression) {
+            if null_terminated(expression) {
+                list.pop_back();
+            } else {
                 list.insert(list.len() - 1, ".".to_string())
             }
             if list.len() >= 3 && ["define", "λ", "defun"].contains(&list[0].as_str()) {
@@ -56,7 +58,9 @@ fn pretty_print_oneline(expression: &Expression) -> String {
             let mut list: Vec<String> = expression_iter(Rc::new(expression.clone()))
                 .map(|x| pretty_print_oneline(x.as_ref()))
                 .collect();
-            if !null_terminated(expression) {
+            if null_terminated(expression) {
+                list.pop();
+            } else{
                 list.insert(list.len() - 1, ".".to_string())
             }
             list.iter()
