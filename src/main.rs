@@ -82,12 +82,8 @@ fn eval(
             .or_else(|| global.associate(symbol.clone()))
         {
             Some(value) => Ok(value.clone()),
-            None => Err(
-                Report::build(ReportKind::Error, "evaluation", 0).with_message(format!(
-                    "Symbol {} not found in environment",
-                    symbol.chars().collect::<String>()
-                )),
-            ),
+            None => Err(Report::build(ReportKind::Error, "evaluation", 0)
+                .with_message(format!("Symbol {} not found in environment", symbol))),
         },
         Expression::Cons(f, v) => apply(
             eval(f, environment, global)?,
