@@ -148,7 +148,7 @@ fn _builtin_inv(
             Report::build(ReportKind::Error, "evaluation", 0)
                 .with_message(format!("Cannot take inverse of non-numeric type {}", e))
         })
-        .map(|x| {
+        .and_then(|x| {
             if x.is_zero() {
                 Err(Report::build(ReportKind::Error, "evaluation", 0)
                     .with_message(format!("Cannot take inverse of 0")))
@@ -156,7 +156,6 @@ fn _builtin_inv(
                 Ok(Expression::Number(x.inverse()))
             }
         })
-        .flatten()
 }
 
 fn _builtin_floor(

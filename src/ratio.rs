@@ -31,14 +31,10 @@ impl Ratio {
         }
     }
     pub fn floor(&self) -> Ratio {
-        if self.num >= 0 {
+        if self.num >= 0 || self.num % self.den as i64 == 0 {
             Ratio::from(self.num / self.den as i64)
         } else {
-            if self.num % self.den as i64 == 0 {
-                Ratio::from(self.num / self.den as i64)
-            } else {
-                Ratio::from(self.num / self.den as i64 - 1)
-            }
+            Ratio::from(self.num / self.den as i64 - 1)
         }
     }
 }
@@ -124,12 +120,10 @@ impl std::fmt::Display for Ratio {
 fn gcd(a: u64, b: u64) -> u64 {
     if b == 0 {
         a
+    } else if a < b {
+        gcd(b, a)
     } else {
-        if a < b {
-            gcd(b, a)
-        } else {
-            gcd(b, a % b)
-        }
+        gcd(b, a % b)
     }
 }
 

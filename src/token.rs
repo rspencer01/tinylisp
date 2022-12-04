@@ -1,4 +1,4 @@
-use std::{fmt::Write, str::Chars};
+use std::str::Chars;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
@@ -20,14 +20,6 @@ impl Token {
     }
     pub fn chars(&self) -> Chars {
         self.value.chars()
-    }
-    pub fn list_to_string(tokens: &[Token]) -> String {
-        let mut token_str = String::new();
-        for token in tokens {
-            // Safe as writing to a string should never fail
-            write!(token_str, "{} ", token).unwrap();
-        }
-        token_str
     }
     pub fn start(&self) -> usize {
         self.position

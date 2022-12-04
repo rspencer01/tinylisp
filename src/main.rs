@@ -3,7 +3,7 @@
 #![warn(clippy::unwrap_used, clippy::panic)]
 use ariadne::{sources, Color, Label, Report, ReportBuilder, ReportKind};
 
-use tracing::{debug, field, instrument, trace, trace_span};
+use tracing::{field, instrument, trace, trace_span};
 
 use std::env;
 use std::fs::read_to_string;
@@ -116,7 +116,7 @@ fn apply(
     environment: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    let span_guard = trace_span!("apply", %function, %arguments).entered();
+    let _span_guard = trace_span!("apply", %function, %arguments).entered();
     match function {
         Expression::Builtin(_, function) => function(arguments, environment, global),
         Expression::Closure(parameters, body, closure_environment) => reduce(
