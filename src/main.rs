@@ -2,8 +2,8 @@
 #![feature(iter_intersperse)]
 #![warn(clippy::unwrap_used, clippy::panic)]
 use ariadne::{sources, Color, Label, Report, ReportBuilder, ReportKind};
-#[macro_use]
-mod logging;
+
+use tracing::{debug, field, instrument, trace, trace_span};
 
 use std::env;
 use std::fs::read_to_string;
@@ -56,9 +56,11 @@ impl Interpreter {
         }
 
         for statement in expression_iter(Rc::new(expression)) {
-            trace!("Statement {}", statement);
+            let span_guard =
+                trace_span!("Root statement", %statement, result=field::Empty).entered();
 
             let ans = eval(&statement, &self.global, &self.global)?;
+            span_guard.record("result", field::display(&ans));
             match ans {
                 Expression::Define(token, value) => {
                     self.global.bind(token, value);
@@ -75,7 +77,6 @@ fn eval(
     environment: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    trace!("Eval {}", expression);
     match expression {
         Expression::Symbol(symbol) => match environment
             .associate(symbol.clone())
@@ -115,7 +116,7 @@ fn apply(
     environment: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    trace!("Apply {} to {}", function, arguments);
+    let span_guard = trace_span!("apply", %function, %arguments).entered();
     match function {
         Expression::Builtin(_, function) => function(arguments, environment, global),
         Expression::Closure(parameters, body, closure_environment) => reduce(
@@ -149,7 +150,10 @@ fn reduce(
     environment: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
+    let span_guard = trace_span!("reduce", %arguments).entered();
     let arguments = Rc::new(eval_list(arguments, environment, global)?);
+    span_guard.record("arguments", field::display(&arguments));
+
     let mut new_env = closure_env.clone();
 
     let (pairings, remaining_parameters) =
@@ -331,6 +335,7 @@ fn make_root_expression(tokens: &[Token]) -> Result<Expression, ErrReport> {
     }
 }
 
+#[instrument]
 fn run(sources: &[(&'static str, String)]) -> Result<(), ErrReport> {
     let mut interpreter = Interpreter::new();
     for source in sources {

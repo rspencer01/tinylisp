@@ -5,10 +5,10 @@ fn _builtin_mul(
     env: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    trace!("Mul on {}", e);
+    let span_guard = trace_span!("mul", parameters=%e, result=field::Empty).entered();
     let e = Rc::new(eval_list(e, env, global)?);
-    trace!("Parameter for mul evaluated to {}", e);
-    expression_iter(e)
+    span_guard.record("parameters", field::display(&e));
+    let result = expression_iter(e)
         .map(|exp| {
             exp.as_number().ok_or_else(|| {
                 Report::build(ReportKind::Error, "evaluation", 0)
@@ -16,7 +16,11 @@ fn _builtin_mul(
             })
         })
         .try_fold(ONE, |accum, x| x.map(|y| accum * y))
-        .map(Expression::Number)
+        .map(Expression::Number);
+    if let Ok(result) = &result {
+        span_guard.record("result", field::display(result));
+    }
+    result
 }
 
 /// Add numeric types together
@@ -32,10 +36,10 @@ fn _builtin_add(
     env: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    trace!("Add on {}", e);
+    let span_guard = trace_span!("add", parameters=%e, result=field::Empty).entered();
     let e = Rc::new(eval_list(e, env, global)?);
-    trace!("Parameter for add evaluated to {}", e);
-    expression_iter(e)
+    span_guard.record("parameters", field::display(&e));
+    let result = expression_iter(e)
         .map(|exp| {
             exp.as_number().ok_or_else(|| {
                 Report::build(ReportKind::Error, "evaluation", 0)
@@ -43,7 +47,11 @@ fn _builtin_add(
             })
         })
         .try_fold(ZERO, |accum, x| x.map(|y| accum + y))
-        .map(Expression::Number)
+        .map(Expression::Number);
+    if let Ok(result) = &result {
+        span_guard.record("result", field::display(result));
+    }
+    result
 }
 
 fn _builtin_lambda(
@@ -51,13 +59,20 @@ fn _builtin_lambda(
     env: &Environment,
     _global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    trace!("Lambda on {}", e);
+    let span_guard =
+        trace_span!("lambda", parameters = field::Empty, body = field::Empty).entered();
     let mut param_body_iter = expression_iter(Rc::new(e.clone()));
     let param_body = (param_body_iter.next(), param_body_iter.next());
     match param_body_iter.next() {
         None => match param_body {
             (Some(parameters), Some(body)) => {
-                Ok(Expression::Closure(parameters, body, Rc::new(env.clone())))
+                span_guard.record("parameters", field::display(&parameters));
+                span_guard.record("body", field::display(&body));
+                Ok(Expression::Closure(
+                    parameters,
+                    body,
+                    Rc::new(env.clone()),
+                ))
             }
             _ => Err(Report::build(ReportKind::Error, "evaluation", 0)
                 .with_message("Lambda must be called on array")
@@ -78,12 +93,14 @@ fn _builtin_macro(
     _env: &Environment,
     _global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    trace!("Macro on {}", e);
+    let span_guard = trace_span!("macro", parameters = field::Empty, body = field::Empty).entered();
     let mut param_body_iter = expression_iter(Rc::new(e.clone()));
     let param_body = (param_body_iter.next(), param_body_iter.next());
     match param_body_iter.next() {
         None => match param_body {
             (Some(parameters), Some(body)) => {
+                span_guard.record("parameters", field::display(&parameters));
+                span_guard.record("body", field::display(&body));
                 Ok(Expression::Macro(parameters, body))
             }
             _ => Err(Report::build(ReportKind::Error, "evaluation", 0)
@@ -105,9 +122,9 @@ fn _builtin_neg(
     env: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    trace!("Neg on {}", e);
+    let span_guard = trace_span!("neg", parameters=%e).entered();
     let e = eval_list(e, env, global)?;
-    trace!("Parameter for neg evaluated to {}", e);
+    span_guard.record("parameters", field::display(&e));
     cons_from_iter_of_result(expression_iter(Rc::new(e)).map(|item| {
         item.as_number()
             .ok_or_else(|| {
@@ -123,7 +140,7 @@ fn _builtin_inv(
     env: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    trace!("Inv on {}", e);
+    let _span_guard = trace_span!("inv", parameters=%e).entered();
     let e = eval(e, env, global)?;
     trace!("Parameter for inv evaluated to {}", e);
     e.as_number()
@@ -147,8 +164,9 @@ fn _builtin_floor(
     env: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    trace!("Floor on {}", e);
+    let span_guard = trace_span!("floor", parameters=%e).entered();
     let e = eval(&e, env, global)?;
+    span_guard.record("parameters", format!("{}", e));
     e.as_number()
         .ok_or_else(|| {
             Report::build(ReportKind::Error, "evaluation", 0)
@@ -162,9 +180,9 @@ fn _builtin_lt(
     env: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    trace!("lt on {}", e);
+    let span_guard = trace_span!("lt", parameters=%e, result=field::Empty).entered();
     let e = eval_list(e, env, global)?;
-    trace!("Parameter for lt evaluated to {}", e);
+    span_guard.record("parameters", field::display(&e));
     let mut param_iter = expression_iter(Rc::new(e));
     let params = (param_iter.next(), param_iter.next());
     match param_iter.next() {
@@ -197,7 +215,7 @@ fn _builtin_cond(
     env: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    trace!("Cond on {}", e);
+    let _span_guard = trace_span!("cond", parameters=%e).entered();
     for item in expression_iter(Rc::new(e.clone())) {
         match item.as_ref() {
             Expression::Cons(pred, value) => match eval(pred.as_ref(), env, global)? {
@@ -206,7 +224,7 @@ fn _builtin_cond(
                     continue;
                 }
                 _ => {
-                    trace!("Condition {} evaluated to true in {}", pred, env);
+                    trace!("Condition {} evaluated to true", pred);
                     return eval(value.as_ref(), env, global);
                 }
             },
@@ -224,7 +242,7 @@ fn _builtin_quote(
     _env: &Environment,
     _global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    trace!("Quote on {}", e);
+    let _span_guard = trace_span!("quote", parameters=%e).entered();
     Ok(e.clone())
 }
 
@@ -241,16 +259,17 @@ fn _builtin_define(
     env: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
+    let span_guard = trace_span!("define", name = field::Empty, value = field::Empty).entered();
     let mut define_body_iter = expression_iter(Rc::new(e.clone()));
     let define_body = (define_body_iter.next(), define_body_iter.next());
     match define_body_iter.next() {
         None => match define_body {
             (Some(name), Some(value)) => {
                 if let Expression::Symbol(name) = name.as_ref().clone() {
-                    Ok(Expression::Define(
-                        name,
-                        Rc::new(eval(value.as_ref(), env, global)?),
-                    ))
+                    span_guard.record("name", field::display(&name));
+                    let value = eval(value.as_ref(), env, global)?;
+                    span_guard.record("value", field::display(&value));
+                    Ok(Expression::Define(name, Rc::new(value)))
                 } else {
                     Err(Report::build(ReportKind::Error, "evaluation", 0)
                         .with_message("Define must be given a token as a first argument"))
