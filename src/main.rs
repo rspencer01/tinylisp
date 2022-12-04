@@ -4,6 +4,8 @@
 use ariadne::{sources, Color, Label, Report, ReportBuilder, ReportKind};
 
 use tracing::{field, instrument, trace, trace_span};
+use tracing_forest::{traits::*, util::EnvFilter, ForestLayer, SpanFieldEventLayer};
+use tracing_subscriber::Registry;
 
 use std::env;
 use std::fs::read_to_string;
@@ -345,6 +347,11 @@ fn run(sources: &[(&'static str, String)]) -> Result<(), ErrReport> {
 }
 
 fn main() -> Result<(), std::io::Error> {
+    Registry::default()
+        .with(SpanFieldEventLayer::default())
+        .with(EnvFilter::from_env("TINYLISP_LOG"))
+        .with(ForestLayer::default())
+        .init();
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 || args.len() > 3 || (args.len() == 3 && args[1] != "--format") {
         return Report::<(&str, std::ops::Range<usize>)>::build(ReportKind::Error, "evaluation", 0)

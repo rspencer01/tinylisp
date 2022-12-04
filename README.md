@@ -17,3 +17,5 @@ $ tinylisp --format my_program.tinylisp
 Both also accept `-` for standard input.
 
 Take a look at the [examples](https://github.com/rspencer01/tinylisp/blob/master/examples) for some applications.
+
+Run with `TINYLISP_LOG=trace` for a detailed breakdown of evaluation.
