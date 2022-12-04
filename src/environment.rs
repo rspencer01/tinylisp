@@ -19,18 +19,18 @@ impl Environment {
         Environment {
             variables: vec![
                 ("λ".to_string(), Rc::new(BUILTIN_LAMBDA)),
-                ("+".to_string(), Rc::new(BUILTIN_ADD)),
-                ("*".to_string(), Rc::new(BUILTIN_MUL)),
-                ("neg".to_string(), Rc::new(BUILTIN_NEG)),
-                ("inv".to_string(), Rc::new(BUILTIN_INV)),
-                ("<".to_string(), Rc::new(BUILTIN_LT)),
-                ("cond".to_string(), Rc::new(BUILTIN_COND)),
+                ("macro".to_string(), Rc::new(BUILTIN_MACRO)),
                 ("'".to_string(), Rc::new(BUILTIN_QUOTE)),
                 ("eval".to_string(), Rc::new(BUILTIN_EVAL)),
                 ("define".to_string(), Rc::new(BUILTIN_DEFINE)),
-                ("macro".to_string(), Rc::new(BUILTIN_MACRO)),
                 ("#env".to_string(), Rc::new(BUILTIN_PRINT_ENVIRONEMNT)),
+                ("+".to_string(), Rc::new(BUILTIN_ADD)),
+                ("×".to_string(), Rc::new(BUILTIN_MUL)),
+                ("neg".to_string(), Rc::new(BUILTIN_NEG)),
+                ("inv".to_string(), Rc::new(BUILTIN_INV)),
+                ("<".to_string(), Rc::new(BUILTIN_LT)),
                 ("floor".to_string(), Rc::new(BUILTIN_FLOOR)),
+                ("cond".to_string(), Rc::new(BUILTIN_COND)),
             ],
         }
     }

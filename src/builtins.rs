@@ -297,16 +297,23 @@ fn _builtin_print_env(
     Ok(Expression::Nil)
 }
 
-pub const BUILTIN_MUL: Expression = Expression::Builtin("×", _builtin_mul);
-pub const BUILTIN_ADD: Expression = Expression::Builtin("+", _builtin_add);
-pub const BUILTIN_NEG: Expression = Expression::Builtin("neg", _builtin_neg);
-pub const BUILTIN_INV: Expression = Expression::Builtin("inv", _builtin_inv);
+// Functional builtins
 pub const BUILTIN_LAMBDA: Expression = Expression::Builtin("λ", _builtin_lambda);
 pub const BUILTIN_MACRO: Expression = Expression::Builtin("macro", _builtin_macro);
-pub const BUILTIN_LT: Expression = Expression::Builtin("<", _builtin_lt);
-pub const BUILTIN_COND: Expression = Expression::Builtin("cond", _builtin_cond);
 pub const BUILTIN_QUOTE: Expression = Expression::Builtin("'", _builtin_quote);
 pub const BUILTIN_EVAL: Expression = Expression::Builtin("eval", _builtin_eval);
+
+// Environment builtins
 pub const BUILTIN_DEFINE: Expression = Expression::Builtin("define", _builtin_define);
 pub const BUILTIN_PRINT_ENVIRONEMNT: Expression = Expression::Builtin("#env", _builtin_print_env);
+
+// Maths builtins
+pub const BUILTIN_ADD: Expression = Expression::Builtin("+", _builtin_add);
+pub const BUILTIN_MUL: Expression = Expression::Builtin("×", _builtin_mul);
+pub const BUILTIN_NEG: Expression = Expression::Builtin("neg", _builtin_neg);
+pub const BUILTIN_INV: Expression = Expression::Builtin("inv", _builtin_inv);
+pub const BUILTIN_LT: Expression = Expression::Builtin("<", _builtin_lt);
 pub const BUILTIN_FLOOR: Expression = Expression::Builtin("floor", _builtin_floor);
+
+// Control flow builtins
+pub const BUILTIN_COND: Expression = Expression::Builtin("cond", _builtin_cond);
