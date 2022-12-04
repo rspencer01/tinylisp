@@ -1,32 +1,32 @@
 (
   ('Loading standard library)
 
-  (define list (λ x . x))
+  (define list (λ x ⋮ x))
 
   (define ⊥ ())
   (define ⊤ (list ⊥))
 
   (define defun (macro (f v x) (list define f (list λ v x))))
   
-  (defun cons (x y) (list x . y))
-  (defun apply (f l) (f . l))
-  (defun not (x) (cond (x) (⊤ . ⊤)))
+  (defun cons (x y) (list x ⋮ y))
+  (defun apply (f l) (f ⋮ l))
+  (defun not (x) (cond (x) (⊤ ⋮ ⊤)))
 
-  (defun head (x . y) x)
-  (defun tail (x . y) y)
+  (defun head (x ⋮ y) x)
+  (defun tail (x ⋮ y) y)
   (defun - (x₀ x) (+ x₀ (apply + (apply neg x))))
   (defun / (x₀ x) (* x₀ (apply * (apply inv x))))
   (defun or₂ (x y) 
     (cond 
-      (x . ⊤)
-      (y . ⊤)
+      (x ⋮ ⊤)
+      (y ⋮ ⊤)
       (⊤)
     )
   )
   (defun and₂ (x y) 
     (not (or₂ (not x) (not y)))
   )
-  (defun >(x y) (< y x))
+  (defun > (x y) (< y x))
   (defun = (x y) (not (or₂ (< x y) (> x y))))
   
   ('Loaded standard library)

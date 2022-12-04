@@ -1,7 +1,7 @@
 ( 
   (defun abs (x) (
-    cond ((> 0 x) . (- 0 x)) 
-         (⊤ . x)
+    cond ((> 0 x) ⋮ (- 0 x)) 
+         (⊤ ⋮ x)
   ))
   (defun close-enough (value guess) (> 0.001 (abs (- value guess))))
   (defun square (x) (- 2 (* x x)))
@@ -19,30 +19,30 @@
      )
   ))
   (defun newton-iter (f x) (
-    cond ((close-enough (f x) 0) . x)
+    cond ((close-enough (f x) 0)⋮x)
          (⊤ newton-iter f (update f x))
   ))
-  (defun solve (f) (newton-iter f 1.0))
+  (defun solve (f) (newton-iter f 1⋮0))
 
   (solve square)
   (defun square (x) (- 3 (* x x)))
   (solve square)
   
   (defun apply-poly (x p) (
-    cond (p . (+ (head . p) (* x (apply-poly x (tail . p)))) )
-         (⊤ . 0)
+    cond (p⋮(+ (head ⋮ p) (* x (apply-poly x (tail ⋮ p)))) )
+         (⊤⋮0)
   ))
   (apply-poly 5 (list 1 2 3))
   (defun factorial (n) (
-    cond ((< n 2) . 1)
-         (⊤ . (* n (factorial (- n 1))))
+    cond ((< n 2) ⋮ 1)
+         (⊤ ⋮ (* n (factorial (- n 1))))
   ))
   (defun range (bottom top) (
     cond ((> top bottom) cons bottom (range (+ bottom 1) top))
          (⊤ list top)
   ))
   (defun each (f l) (
-    cond (l cons (f (head . l)) (each f (tail . l)))
+    cond (l cons (f (head ⋮ l)) (each f (tail ⋮ l)))
          (⊤)
   ))
   

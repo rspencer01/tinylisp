@@ -237,7 +237,7 @@ fn make_list_expression(
             let tokens = &tokens[head_len..];
             match tokens.first() {
                 Some(token) => {
-                    if token.chars().next() == Some('.') {
+                    if token.chars().next() == Some('⋮') {
                         let (tail, tail_len) = make_expression(&tokens[1..])?;
                         Ok((
                             Expression::Cons(Rc::new(head), Rc::new(tail)),

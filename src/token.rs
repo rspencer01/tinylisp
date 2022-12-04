@@ -47,7 +47,7 @@ pub fn tokenise(source: &str, source_id: &'static str) -> Vec<Token> {
     while let Some(curr) = chars.next() {
         match curr {
             x if x.is_whitespace() => {}
-            '(' | ')' | '\'' => {
+            '(' | ')' | '\'' | '⋮' => {
                 tokens.push(Token::new(source, source_id, token_start, 1));
             }
             ';' => {
@@ -60,7 +60,7 @@ pub fn tokenise(source: &str, source_id: &'static str) -> Vec<Token> {
                 let mut token_len = 0;
                 while chars
                     .peek()
-                    .map(|x| x.is_whitespace() || *x == '(' || *x == ')')
+                    .map(|x| x.is_whitespace() || *x == '(' || *x == ')' || *x == '⋮')
                     == Some(false)
                 {
                     chars.next();

@@ -35,7 +35,7 @@ impl Expression {
                 Expression::Symbol(t) => t.chars().collect(),
                 Expression::Builtin(name, _) => name.to_string(),
                 Expression::Cons(car, cdr) => {
-                    format!("( {} )", Expression::cons_print(car, cdr))
+                    format!("({})", Expression::cons_print(car, cdr))
                 }
                 Expression::Nil => "⊥".to_string(),
                 Expression::Closure(a, v, _) => {
@@ -54,9 +54,9 @@ impl Expression {
                 Expression::Symbol(t) => t.chars().collect(),
                 Expression::Builtin(name, _) => format!("\x1B[1;32m{}\x1B[0m", name),
                 Expression::Cons(car, cdr) => {
-                    format!("( {} )", Expression::cons_print(car, cdr))
+                    format!("({})", Expression::cons_print(car, cdr))
                 }
-                Expression::Nil => "\x1B[1;90m⊥\x1B[0m".to_string(),
+                Expression::Nil => "⊥".to_string(),
                 //NOTE(robert) This is very cool but gets out of hand easily
                 //Expression::Closure(a, v, e) => format!(
                 //    "\x1B[1;33mλ\x1B[0m {} \x1B[1;33m→\x1B[0m {} \x1B[1;33mwith\x1B[0m {}",
@@ -81,10 +81,12 @@ impl Expression {
             Expression::Cons(a, b) => Expression::cons_print(a, b),
             e => e.pretty_print(),
         };
-        if matches!(cdr, Expression::Nil | Expression::Cons(_, _)) {
+        if matches!(cdr, Expression::Cons(_, _)) {
             format!("{} {}", car_str, cdr_str)
+        } else if matches!(cdr, Expression::Nil) {
+            format!("{}", car_str)
         } else {
-            format!("{} \x1B[1;90m·\x1B[0m {}", car_str, cdr_str)
+            format!("{}⋮{}", car_str, cdr_str)
         }
     }
 
