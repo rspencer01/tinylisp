@@ -156,22 +156,24 @@ fn _builtin_inv(
     env: &Environment,
     global: &Environment,
 ) -> Result<Expression, ErrReport> {
-    let _span_guard = trace_span!("inv", parameters=%e).entered();
-    let e = eval(e, env, global)?;
-    trace!("Parameter for inv evaluated to {}", e);
-    e.as_number()
-        .ok_or_else(|| {
-            Report::build(ReportKind::Error, "evaluation", 0)
-                .with_message(format!("Cannot take inverse of non-numeric type {}", e))
-        })
-        .and_then(|x| {
-            if x.is_zero() {
-                Err(Report::build(ReportKind::Error, "evaluation", 0)
-                    .with_message(format!("Cannot take inverse of 0")))
-            } else {
-                Ok(Expression::Number(x.inverse()))
-            }
-        })
+    let span_guard = trace_span!("inv", parameters=%e).entered();
+    let e = eval_list(e, env, global)?;
+    span_guard.record("parameters", field::display(&e));
+    cons_from_iter_of_result(expression_iter(Rc::new(e)).map(|item| {
+        item.as_number()
+            .ok_or_else(|| {
+                Report::build(ReportKind::Error, "evaluation", 0)
+                    .with_message(format!("Cannot take inv of non-numeric type {}", item))
+            })
+            .and_then(|x| {
+                if x.is_zero() {
+                    Err(Report::build(ReportKind::Error, "evaluation", 0)
+                        .with_message(format!("Cannot take inverse of 0")))
+                } else {
+                    Ok(Expression::Number(x.inverse()))
+                }
+            })
+    }))
 }
 
 fn _builtin_floor(
