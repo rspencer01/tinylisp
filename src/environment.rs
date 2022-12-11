@@ -16,8 +16,8 @@
 
 use std::rc::Rc;
 
-use crate::expression::Expression;
 use crate::builtins::*;
+use crate::expression::Expression;
 use crate::token::Token;
 
 #[derive(Clone)]
@@ -27,9 +27,7 @@ pub struct Environment {
 
 impl Environment {
     pub fn new() -> Self {
-        Environment {
-            variables: vec![]
-        }
+        Environment { variables: vec![] }
     }
     pub fn new_base() -> Self {
         Environment {
@@ -47,6 +45,10 @@ impl Environment {
                 ("<".to_string(), Rc::new(BUILTIN_LT)),
                 ("floor".to_string(), Rc::new(BUILTIN_FLOOR)),
                 ("cond".to_string(), Rc::new(BUILTIN_COND)),
+                (
+                    "⊤".to_string(),
+                    Rc::new(Expression::Symbol(Token::new("⊤", "builtin", 0, 1))),
+                ),
             ],
         }
     }
@@ -74,4 +76,3 @@ impl std::fmt::Display for Environment {
         write!(f, "}}")
     }
 }
-
