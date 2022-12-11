@@ -4,30 +4,75 @@
   (define list (λ x ⋮ x))
 
   (define ⊥ ())
-  (define ⊤ (list ⊥))
 
   (define defun (macro (f v x) (list define f (list λ v x))))
+
+  (define if (macro (cn tr fa)
+    (list cond (cons cn tr) (cons ⊤ fa))
+  ))
   
-  (defun cons (x y) (list x ⋮ y))
+  (defun cons (x y) (list x ⋮ y))  
   (defun apply (f l) (f ⋮ l))
   (defun not (x) (cond (x) (⊤ ⋮ ⊤)))
+  (define ¬ not)
 
-  (defun head (x ⋮ y) x)
-  (defun tail (x ⋮ y) y)
-  (defun - (x₀ x) (+ x₀ (apply + (apply neg x))))
-  (defun / (x₀ x) (* x₀ (apply * (apply inv x))))
-  (defun or₂ (x y) 
+  (defun head (x⋮y) x)
+  (defun tail (x⋮y) y)
+  (defun first (l) (head⋮l))
+  (defun last_arg (h⋮t) (
+    if t (apply last_arg t) h
+  ))
+  (define last (apply last_arg))
+
+  (defun - (x₀⋮x) (+ x₀ (apply + (apply neg x))))  
+  (defun / (x₀⋮x) (× x₀ (apply × (apply inv x))))
+  (defun ∨ (x y) 
     (cond 
-      (x ⋮ ⊤)
-      (y ⋮ ⊤)
-      (⊤)
+      (x⋮x)
+      (y⋮y)
+      (⊤⋮⊥)
     )
   )
-  (defun and₂ (x y) 
-    (not (or₂ (not x) (not y)))
+  (defun ∧ (x y) 
+    (¬ (∨ (¬ x) (¬ y)))
   )
   (defun > (x y) (< y x))
-  (defun = (x y) (not (or₂ (< x y) (> x y))))
+  (defun = (x y) (¬ (∨ (< x y) (> x y))))
+  (defun ≤ (x y) (¬ (> x y)))
+  (defun ≥ (x y) (¬ (< x y)))
   
+  (defun abs (x) (
+    if (> 0 x)
+      (- 0 x)
+      x
+  ))
+  
+  ; List operations
+  (defun map (f l) (
+    cond (l cons (f (head⋮l)) (map f (tail⋮l)))
+         (⊤)
+  ))
+  (defun scan (f l start) (
+    cond (l cons (f (head⋮l) start) (scan f (tail⋮l) (f (head⋮l) start)))
+         (⊤)
+  ))
+  
+  ; TODO(robert) Use parameter elision here
+  (define ∘ (λ (f g) (λ x (f (g⋮x)))))
+  
+  (define reduce (∘ last scan))
+  
+  (defun ∑ (x) (reduce + x 0))
+  (defun ∏ (x) (reduce × x 1))
+  
+  (defun max₂ (x y) (if (< x y) y x))
+  (defun max (x) (reduce max₂ x -9223372036854775808))
+  
+  
+  (defun is_even (x) (
+    = (× 2 (floor⋮(/ x 2))) x
+  ))
+  (defun is_odd (x) (not (is_even x)))
+
   ('Loaded standard library)
 )

@@ -1,13 +1,8 @@
 ( 
-  (defun abs (x) (
-    cond ((> 0 x) ⋮ (- 0 x)) 
-         (⊤ ⋮ x)
-  ))
-  (defun close-enough (value guess) (> 0.001 (abs (- value guess))))
-  (defun square (x) (- 2 (* x x)))
+  (defun ≃ (x y) (> 0.00000001 (abs (- x y))))
 
-  (define h 0.001)
-  (defun derivitive (f) (λ (x) 
+  (define h⋮0.000001)
+  (defun ∂ (f) (λ (x) 
     (/ (- (f (+ x h)) (f x))
        h
     )
@@ -15,58 +10,48 @@
 
   (defun update (f guess) (- guess
      (/ (f guess) 
-       ((derivitive f) guess)
+        ((∂ f) guess)
      )
   ))
   (defun newton-iter (f x) (
-    cond ((close-enough (f x) 0)⋮x)
-         (⊤ newton-iter f (update f x))
+    cond ((≃ (f x) 0)⋮ x)
+         (⊤⋮(newton-iter f (update f x)))
   ))
   (defun solve (f) (newton-iter f 1⋮0))
 
-  (solve square)
-  (defun square (x) (- 3 (* x x)))
-  (solve square)
+  (defun √ (x) (solve (λ (y) (- x (× y y)))))
+  (' Finding square root of 2)
+  (√ 2)
+  (' Finding square root of 3)
+  (√ 3)
+  (' Finding square root of 4)
+  (√ 4)
   
   (defun apply-poly (x p) (
-    cond (p⋮(+ (head ⋮ p) (* x (apply-poly x (tail ⋮ p)))) )
+    cond (p⋮(+ (head ⋮ p) (× x (apply-poly x (tail ⋮ p)))) )
          (⊤⋮0)
   ))
-  (apply-poly 5 (list 1 2 3))
+  
   (defun factorial (n) (
     cond ((< n 2) ⋮ 1)
-         (⊤ ⋮ (* n (factorial (- n 1))))
+         (⊤ ⋮ (× n (factorial (- n 1))))
   ))
   (defun range (bottom top) (
     cond ((> top bottom) cons bottom (range (+ bottom 1) top))
          (⊤ list top)
   ))
-  (defun each (f l) (
-    cond (l cons (f (head ⋮ l)) (each f (tail ⋮ l)))
-         (⊤)
-  ))
-  
-  (defun double (x) (* 2 x))
-  
-  (each double (list 1 3 2 5 8 2.45 9/2))
+  (range 1 4)
 
-  (+ 0.0 (apply-poly 1 (each (λ (x) (inv factorial x)) (range 0 10))))
-  (+ 0.0 (+ (each (λ (x) (inv factorial x)) (range 0 10))))
-
-  (define cos_taylor (list
-    1
-    0
-    (/ (- 0 1) (factorial 2))
-    0
-    (/ 1 (factorial 4))
-    0
-    (/ (- 0 1) (factorial 6))
-    0
-    (/ 1 (factorial 8))
-    0
-    (/ (- 0 1) (factorial 10))
+  (' Finding e as sum of reciprocals of factorials)
+  (apply + (apply inv (each (λ (x) (+ 0.0 (factorial x))) (range 0 20))))
+  
+  (defun cos_taylor_coeff (x) (
+    cond ((is_even x) / (cond ((is_even (/ x 2)) ⋮ 1) (⊤ ⋮ -1)) (factorial x))
+         (⊤ ⋮ 0)
   ))
+  (define cos_taylor (each cos_taylor_coeff (range 0 25)))
+  
   (defun cos (x) (apply-poly x cos_taylor))
-  (cos 1.0) ; 0.5403
-  (* 2 (solve cos))  
+  (' Finding pi) 
+  (× 2 (solve cos))  
 )
